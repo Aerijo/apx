@@ -1,14 +1,21 @@
 {
   "author": "Benjamin Gray",
-  "main": "./lib/main.js",
+  "main": "./dist/main.js",
   "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": ""
   },
+  "files": [
+    "/dist"
+  ],
   "keywords": [],
   "license": "MIT",
-  "name": "",
+  "name": "apx",
+  "scripts": {
+    "exec": "tsc && echo 'running apx...' && node .",
+    "prepare": "tslint src && tsc"
+  },
   "dependencies": {
     "yargs": "^13.2.4"
   },
