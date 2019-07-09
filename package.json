@@ -1,0 +1,19 @@
+{
+  "author": "Benjamin Gray",
+  "main": "./lib/main.js",
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [],
+  "license": "MIT",
+  "name": "",
+  "dependencies": {
+    "yargs": "^13.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^12.6.1",
+    "@types/yargs": "^13.0.0"
+  }
+}
