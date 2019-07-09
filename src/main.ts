@@ -2,13 +2,20 @@ import * as child_process from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as yargs from "yargs";
+import * as semver from "semver";
 import {Install} from "./install";
+import {SemVer} from 'semver';
+
+// Allow 'require' on ASAR archived files
+require("asar-require");
 
 export class Context {
   private homeDirectory: string | undefined;
   private atomDirectory: string | undefined;
   private resourceDirectory: string | undefined;
   private reposDirectory: string | undefined;
+  private atomVersion: SemVer | undefined;
+  private electronVersion: SemVer | undefined;
 
   isWindows (): boolean {
     return process.platform === "win32";
@@ -105,6 +112,38 @@ export class Context {
   getAtomNodeDirectory (): string {
     return path.join(this.getAtomDirectory(), ".node-gyp");
   }
+
+  calculateAtomElectronVersions () {
+    let {version: atomVersion, electronVersion} = require(path.join(this.getResourceDirectory(), "package.json"));
+
+    atomVersion = semver.parse(atomVersion);
+    electronVersion = semver.parse(electronVersion);
+
+    if (!atomVersion) {
+      throw new Error("Could not determine Atom version");
+    }
+
+    if (!electronVersion) {
+      throw new Error("Could not determine Electron version");
+    }
+
+    this.atomVersion = atomVersion;
+    this.electronVersion = electronVersion;
+  }
+
+  getAtomVersion (): SemVer {
+    if (!this.atomVersion) {
+      this.calculateAtomElectronVersions();
+    }
+    return this.atomVersion!;
+  }
+
+  getElectronVersion (): SemVer {
+    if (!this.electronVersion) {
+      this.calculateAtomElectronVersions();
+    }
+    return this.electronVersion!;
+  }
 }
 
 
@@ -139,3 +178,5 @@ getArguments();
 let foo = new Context();
 let install = new Install(foo);
 install.createAtomDirectories();
+
+console.log(foo.getAtomVersion());
