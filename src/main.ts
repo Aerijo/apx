@@ -144,6 +144,10 @@ export class Context {
     }
     return this.electronVersion!;
   }
+
+  getElectronArch (): string {
+    return process.env.ATOM_ARCH || process.arch;
+  }
 }
 
 
@@ -175,8 +179,9 @@ function getArguments() {
 
 getArguments();
 
-let foo = new Context();
-let install = new Install(foo);
-install.createAtomDirectories();
+let context = new Context();
+let install = new Install(context);
 
-console.log(foo.getAtomVersion());
+install.run();
+
+console.log("...done");

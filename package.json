@@ -19,11 +19,13 @@
   "dependencies": {
     "asar-require": "^0.3.0",
     "semver": "^6.2.0",
+    "tmp": "^0.1.0",
     "yargs": "^13.2.4"
   },
   "devDependencies": {
     "@types/node": "^12.6.1",
     "@types/semver": "^6.0.1",
+    "@types/tmp": "^0.1.0",
     "@types/yargs": "^13.0.0",
     "tslib": "^1.10.0",
     "typescript": "^3.5.3"
