@@ -20,6 +20,7 @@
     "asar-require": "^0.3.0",
     "semver": "^6.2.0",
     "tmp": "^0.1.0",
+    "validate-npm-package-name": "^3.0.0",
     "yargs": "^13.2.4"
   },
   "devDependencies": {

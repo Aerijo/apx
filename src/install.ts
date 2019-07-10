@@ -4,7 +4,8 @@ import * as child_process from "child_process";
 import * as tmp from "tmp";
 tmp.setGracefulCleanup();
 
-import {Context} from "./main";
+import {Context} from "./context";
+import {Arguments} from "yargs";
 
 export class Install {
   context: Context;
@@ -27,7 +28,7 @@ export class Install {
     ]
   }
 
-  installModule () {
+  installModule (tarballUrl: string) {
     const installDir = tmp.dirSync({prefix: "apx-install-", unsafeCleanup: true});
     const modulesDir = path.join(installDir.name, "node_modules");
     fs.mkdirSync(modulesDir);
@@ -37,7 +38,7 @@ export class Install {
       [
         "install",
         "--global-style",
-        "https://www.atom.io/api/packages/language-tree-test/versions/0.1.0/tarball",
+        tarballUrl,
         ...this.getElectronBuildFlags(),
       ],
       {
@@ -77,9 +78,28 @@ export class Install {
     installDir.removeCallback();
   }
 
-  run () {
+  installDependencies (argv: Arguments) {
+    console.log("installing dependencies...");
+  }
+
+  async handler (argv: Arguments) {
+    let packageName = argv.uri as string;
+    let version;
+
+    if (packageName === ".") {
+      this.installDependencies(argv);
+      return;
+    }
+
+    const versionIndex = packageName.indexOf("@");
+    if (versionIndex > 0) {
+      version = packageName.slice(versionIndex + 1);
+      packageName = packageName.slice(0, versionIndex);
+    }
+
     this.createAtomDirectories();
-    this.installModule();
+
+    this.installModule(packageName, version);
   }
 }
 
