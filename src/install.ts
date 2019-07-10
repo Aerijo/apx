@@ -3,9 +3,10 @@ import * as path from "path";
 import * as child_process from "child_process";
 import * as tmp from "tmp";
 tmp.setGracefulCleanup();
+import {Arguments} from "yargs";
 
 import {Context} from "./context";
-import {Arguments} from "yargs";
+import {getJson} from "./request";
 
 export class Install {
   context: Context;
@@ -82,6 +83,17 @@ export class Install {
     console.log("installing dependencies...");
   }
 
+  async getPackageTarball (name: string, version: string | undefined): Promise<string> {
+    const requestUrl = this.context.getAtomPackagesUrl() + `/${name}`;
+    const message = await getJson(requestUrl);
+
+    if (!version) {
+      version = message.releases.latest as string;
+    }
+
+    return message.versions[version].dist.tarball;
+  }
+
   async handler (argv: Arguments) {
     let packageName = argv.uri as string;
     let version;
@@ -99,7 +111,11 @@ export class Install {
 
     this.createAtomDirectories();
 
-    this.installModule(packageName, version);
+    const tarball = await this.getPackageTarball(packageName, version);
+
+    console.log("Installing", tarball);
+
+    this.installModule(tarball);
   }
 }
 
