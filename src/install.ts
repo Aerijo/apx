@@ -3,6 +3,7 @@ import * as path from "path";
 import * as child_process from "child_process";
 import * as tmp from "tmp";
 tmp.setGracefulCleanup();
+
 import {Arguments} from "yargs";
 
 import {Context} from "./context";
@@ -29,7 +30,7 @@ export class Install {
     ]
   }
 
-  installModule (tarballUrl: string) {
+  installFromUrl (tarballUrl: string) {
     const installDir = tmp.dirSync({prefix: "apx-install-", unsafeCleanup: true});
     const modulesDir = path.join(installDir.name, "node_modules");
     fs.mkdirSync(modulesDir);
@@ -48,6 +49,8 @@ export class Install {
       }
     )
 
+    console.log(result.stdout);
+
     if (result.error) {
       throw result.error;
     }
@@ -65,17 +68,12 @@ export class Install {
     const source = path.join(modulesDir, packName);
     const dest = path.join(this.context.getAtomPackagesDirectory(), packName);
 
-    console.log(`renaming ${source} to ${dest}`);
     try {
       fs.renameSync(source, dest);
     } catch (e) {
       throw e;
     }
-
-    console.log("vvvvv");
-    console.log(result.stdout.toString());
-    console.log("^^^^^");
-
+    console.log("Finished install");
     installDir.removeCallback();
   }
 
@@ -84,12 +82,24 @@ export class Install {
   }
 
   async getPackageTarball (name: string, version: string | undefined): Promise<string> {
-    const requestUrl = this.context.getAtomPackagesUrl() + `/${name}`;
+    const requestUrl = `${this.context.getAtomPackagesUrl()}/${name}`;
     const message = await getJson(requestUrl);
+
+    if (!message) {
+      throw new Error(`Could not retrieve package data for ${name}`);
+    }
 
     if (!version) {
       version = message.releases.latest as string;
     }
+
+    const release = message.versions[version];
+
+    if (!release) {
+      throw new Error(`Could not retrieve version ${version} of package ${name}`);
+    }
+
+    console.log(release);
 
     return message.versions[version].dist.tarball;
   }
@@ -115,7 +125,7 @@ export class Install {
 
     console.log("Installing", tarball);
 
-    this.installModule(tarball);
+    // this.installFromUrl(tarball);
   }
 }
 

@@ -1,12 +1,12 @@
 import * as yargs from "yargs";
+yargs.wrap(Math.min(120, yargs.terminalWidth()));
+
 import {Context} from "./context";
 import {Install} from "./install";
 
 // Allow 'require' on ASAR archived files
 require("asar-require");
 
-
-yargs.wrap(Math.min(120, yargs.terminalWidth()));
 
 
 function getArguments(context: Context) {

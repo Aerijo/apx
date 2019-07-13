@@ -14,10 +14,11 @@
   "name": "apx",
   "scripts": {
     "exec": "tsc && echo 'running apx...' && node .",
-    "prepare": "tslint src && tsc"
+    "prepare": "tslint ./src/** && tsc"
   },
   "dependencies": {
     "asar-require": "^0.3.0",
+    "keytar": "^4.11.0",
     "semver": "^6.2.0",
     "tmp": "^0.1.0",
     "validate-npm-package-name": "^3.0.0",
