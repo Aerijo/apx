@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/Aerijo/apx"
   },
   "files": [
     "/dist"
@@ -30,6 +30,7 @@
     "@types/tmp": "^0.1.0",
     "@types/yargs": "^13.0.0",
     "tslib": "^1.10.0",
+    "tslint": "^5.18.0",
     "typescript": "^3.5.3"
   }
 }
