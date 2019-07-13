@@ -8,7 +8,6 @@ import {Install} from "./install";
 require("asar-require");
 
 
-
 function getArguments(context: Context) {
   return yargs
     .option("version", {
@@ -61,4 +60,7 @@ export function main (): number {
   return 0;
 }
 
-main();
+
+if (require.main === module) {
+  main();
+}
