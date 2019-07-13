@@ -9,9 +9,12 @@
   "files": [
     "/dist"
   ],
+  "bin": {
+    "apx": "./dist/cli.js"
+  },
   "keywords": [],
   "license": "MIT",
-  "name": "apx",
+  "name": "@aerijo/apx",
   "scripts": {
     "exec": "tsc && echo 'running apx...' && node .",
     "prepare": "tslint ./src/** && tsc"

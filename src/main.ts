@@ -48,7 +48,7 @@ function getArguments(context: Context) {
 }
 
 
-function main (): number {
+export function main (): number {
   const context = new Context();
 
   const argv = getArguments(context);
