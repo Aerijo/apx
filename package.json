@@ -17,7 +17,8 @@
   "name": "@aerijo/apx",
   "scripts": {
     "exec": "tsc && echo 'running apx...' && node .",
-    "prepare": "tslint ./src/** && tsc"
+    "prepare": "tslint ./src/** && tsc",
+    "prepublishOnly": "tsc --declarationMap false --inlineSourceMap false --inlineSources false"
   },
   "dependencies": {
     "asar-require": "^0.3.0",

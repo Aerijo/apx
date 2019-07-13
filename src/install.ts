@@ -101,7 +101,7 @@ export class Install {
 
     console.log(release);
 
-    return message.versions[version].dist.tarball;
+    return release.dist.tarball;
   }
 
   async handler (argv: Arguments) {
