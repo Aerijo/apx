@@ -18,7 +18,7 @@
     "no-duplicate-variable": true,
     "no-dynamic-delete": true,
     "no-eval": true,
-    "no-floating-promises": true,
+    "no-floating-promises": false,
     "no-for-in-array": true,
     "no-implicit-dependencies": true,
     "no-invalid-template-strings": true,
@@ -41,7 +41,7 @@
     "static-this": true,
     "use-isnan": true,
     "deprecation": true,
-    "no-require-imports": true,
+    "no-require-imports": false,
     "prefer-const": true,
     "prefer-readonly": true,
     "array-type": {

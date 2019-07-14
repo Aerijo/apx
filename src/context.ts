@@ -47,14 +47,12 @@ export class Context {
       const apps = child_process.execSync("mdfind \"kMDItemCFBundleIdentifier == 'com.github.atom'\"", {
         encoding: "utf8",
         timeout: 1000,
-        windowsHide: true,
       }).split("\n");
 
-      if (apps.length > 0) {
-        appLocation = `${apps[0]}/Contents/Resources/app.asar`; // TODO: Configurable by flag?
-      } else {
-        appLocation = "/Applications/Atom.app/Contents/Resources/app.asar";
-      }
+      appLocation = apps.length > 0
+        ? `${apps[0]}/Contents/Resources/app.asar` // TODO: Configurable by flag?
+        : "/Applications/Atom.app/Contents/Resources/app.asar";
+
     } else if (process.platform === "linux") {
       appLocation = "/usr/local/share/atom/resources/app.asar";
       if (!fs.existsSync(appLocation)) {
@@ -88,7 +86,7 @@ export class Context {
   }
 
   getAtomApiUrl (): string {
-    return process.env.ATOM_API_URL || "https://atom.io/api"
+    return process.env.ATOM_API_URL || "https://atom.io/api";
   }
 
   getAtomPackagesUrl (): string {

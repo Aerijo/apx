@@ -28,7 +28,7 @@ export class Install {
       `--target=${this.context.getElectronVersion().version}`,
       `--disturl=${this.context.getElectronUrl()}`,
       `--arch=${this.context.getElectronArch()}`,
-    ]
+    ];
   }
 
   installFromUrl (tarballUrl: string) {
@@ -47,8 +47,8 @@ export class Install {
       {
         cwd: installDir.name,
         encoding: "utf8",
-      }
-    )
+      },
+    );
 
     console.log(result.stdout);
 
@@ -82,7 +82,7 @@ export class Install {
     console.log("installing dependencies... (TODO)");
   }
 
-  getGithubOwnerRepo (release: any): {owner: string, repo: string} {
+  getGithubOwnerRepo (release: any): {owner: string; repo: string} {
     let repoUrl = release.repository;
     if (repoUrl && release.repository.url) {
       repoUrl = release.repository.url;

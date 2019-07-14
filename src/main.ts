@@ -8,7 +8,7 @@ import {Install} from "./install";
 require("asar-require");
 
 
-function getArguments(context: Context) {
+function getArguments (context: Context) {
   return yargs
     .option("version", {
       alias: "v",
@@ -36,12 +36,12 @@ function getArguments(context: Context) {
           .option("check", {
             describe: "Check that native modules can be built",
             type: "boolean",
-          })
+          });
       },
       handler (argv) {
         const install = new Install(context);
         install.handler(argv);
-      }
+      },
     })
     .parse();
 }

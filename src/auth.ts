@@ -1,7 +1,7 @@
 import * as keytar from "keytar";
 
 // Use same token as apm
-const tokenName = "Atom.io API Token"
+const tokenName = "Atom.io API Token";
 const account = "atom.io";
 
 export async function getToken (): Promise<string> {
