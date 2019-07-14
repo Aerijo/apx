@@ -4,7 +4,7 @@ import * as keytar from "keytar";
 const tokenName = "Atom.io API Token";
 const account = "atom.io";
 
-export async function getToken (): Promise<string> {
+export async function getToken(): Promise<string> {
   if (process.env.ATOM_ACCESS_TOKEN) {
     return process.env.ATOM_ACCESS_TOKEN;
   }
@@ -18,11 +18,10 @@ export async function getToken (): Promise<string> {
   }
 }
 
-
 /**
  * @param  token Value to store
  * @return       Promise that resolves when request is completed
  */
-export function setToken (token: string): Promise<void> {
+export function setToken(token: string): Promise<void> {
   return keytar.setPassword(tokenName, account, token);
 }

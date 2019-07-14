@@ -13,17 +13,17 @@ import {getJson, getGithubGraphql} from "./request";
 export class Install {
   context: Context;
 
-  constructor (context: Context) {
+  constructor(context: Context) {
     this.context = context;
   }
 
-  createAtomDirectories () {
+  createAtomDirectories() {
     tryMakeDir(this.context.getAtomDirectory());
     tryMakeDir(this.context.getAtomPackagesDirectory());
     tryMakeDir(this.context.getAtomNodeDirectory());
   }
 
-  getElectronBuildFlags (): string[] {
+  getElectronBuildFlags(): string[] {
     return [
       `--target=${this.context.getElectronVersion().version}`,
       `--disturl=${this.context.getElectronUrl()}`,
@@ -31,23 +31,18 @@ export class Install {
     ];
   }
 
-  installFromUrl (tarballUrl: string) {
+  installFromUrl(tarballUrl: string) {
     const installDir = tmp.dirSync({prefix: "apx-install-", unsafeCleanup: true});
     const modulesDir = path.join(installDir.name, "node_modules");
     fs.mkdirSync(modulesDir);
 
     const result = child_process.spawnSync(
       "npm",
-      [
-        "install",
-        "--global-style",
-        tarballUrl,
-        ...this.getElectronBuildFlags(),
-      ],
+      ["install", "--global-style", tarballUrl, ...this.getElectronBuildFlags()],
       {
         cwd: installDir.name,
         encoding: "utf8",
-      },
+      }
     );
 
     console.log(result.stdout);
@@ -78,11 +73,11 @@ export class Install {
     installDir.removeCallback();
   }
 
-  installDependencies (_argv: Arguments) {
+  installDependencies(_argv: Arguments) {
     console.log("installing dependencies... (TODO)");
   }
 
-  getGithubOwnerRepo (release: any): {owner: string; repo: string} {
+  getGithubOwnerRepo(release: any): {owner: string; repo: string} {
     let repoUrl = release.repository;
     if (repoUrl && release.repository.url) {
       repoUrl = release.repository.url;
@@ -104,7 +99,12 @@ export class Install {
   }
 
   // TODO: Support for builds split by OS & Electron version
-  async getGithubRelease (owner: string, repo: string, name: string, version: string): Promise<string|undefined> {
+  async getGithubRelease(
+    owner: string,
+    repo: string,
+    name: string,
+    version: string
+  ): Promise<string | undefined> {
     const query = `{
       repository(owner:"${owner}", name:"${repo}") {
         release(tagName:"v${version}") {
@@ -117,18 +117,16 @@ export class Install {
       }
     }`;
 
+    const data = await getGithubGraphql(query);
     try {
-      const data = await getGithubGraphql(query);
       const assets = data.repository.release.releaseAssets.nodes;
-      return assets.length === 1
-        ? assets[0].downloadUrl
-        : undefined;
+      return assets.length === 1 ? assets[0].downloadUrl : undefined;
     } catch (e) {
-      throw e;
+      return undefined;
     }
   }
 
-  async getPackageTarball (name: string, version: string | undefined): Promise<string> {
+  async getPackageTarball(name: string, version: string | undefined): Promise<string> {
     const requestUrl = `${this.context.getAtomPackagesUrl()}/${name}`;
     const message = await getJson(requestUrl);
 
@@ -161,7 +159,7 @@ export class Install {
     return release.dist.tarball;
   }
 
-  async handler (argv: Arguments) {
+  async handler(argv: Arguments) {
     let packageName = argv.uri as string;
     let version;
 
@@ -190,8 +188,7 @@ export class Install {
   }
 }
 
-
-function tryMakeDir (dir: string) {
+function tryMakeDir(dir: string) {
   try {
     fs.mkdirSync(dir, {recursive: true});
   } catch (e) {

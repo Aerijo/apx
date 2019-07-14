@@ -7,8 +7,7 @@ import {Install} from "./install";
 // Allow 'require' on ASAR archived files
 require("asar-require");
 
-
-function getArguments (context: Context) {
+function getArguments(context: Context) {
   return yargs
     .option("version", {
       alias: "v",
@@ -21,7 +20,7 @@ function getArguments (context: Context) {
     .command({
       command: "install [uri]",
       describe: "Installs a package or it's dependencies.",
-      builder () {
+      builder() {
         return yargs
           .positional("uri", {
             describe: "An identifier of the package to install",
@@ -38,7 +37,7 @@ function getArguments (context: Context) {
             type: "boolean",
           });
       },
-      handler (argv) {
+      handler(argv) {
         const install = new Install(context);
         install.handler(argv);
       },
@@ -46,8 +45,7 @@ function getArguments (context: Context) {
     .parse();
 }
 
-
-export function main (): number {
+export function main(): number {
   const context = new Context();
 
   const argv = getArguments(context);
@@ -59,7 +57,6 @@ export function main (): number {
 
   return 0;
 }
-
 
 if (require.main === module) {
   main();

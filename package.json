@@ -18,7 +18,8 @@
   "scripts": {
     "build": "tsc",
     "exec": "npm run build && echo 'running apx...' && node .",
-    "prepublishOnly": "tslint ./src/** && tsc --declarationMap false --inlineSourceMap false --inlineSources false"
+    "prepublishOnly": "npm run lint && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
+    "lint": "prettier --check --write --ignore-path .gitignore **/*"
   },
   "dependencies": {
     "asar-require": "^0.3.0",
@@ -35,8 +36,10 @@
     "@types/semver": "^6.0.1",
     "@types/tmp": "^0.1.0",
     "@types/yargs": "^13.0.0",
+    "prettier": "1.18.2",
     "tslib": "^1.10.0",
     "tslint": "^5.18.0",
+    "tslint-config-prettier": "1.18.0",
     "typescript": "^3.5.3"
   }
 }
