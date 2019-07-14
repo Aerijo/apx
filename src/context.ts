@@ -99,6 +99,14 @@ export class Context {
     return process.env.ATOM_ELECTRON_URL || "https://atom.io/download/electron";
   }
 
+  getGithubApiUrl (): string {
+    return process.env.ATOM_GITHUB_URL || "https://api.github.com";
+  }
+
+  getGithubRepoUrl (owner: string, repo: string): string {
+    return `${this.getGithubApiUrl()}/repos/${owner}/${repo}`;
+  }
+
   getAtomPackagesDirectory (dev: boolean=false): string {
     return dev
       ? path.join(this.getAtomDirectory(), "dev", "packages")

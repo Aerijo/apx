@@ -16,12 +16,13 @@
   "license": "MIT",
   "name": "@aerijo/apx",
   "scripts": {
-    "exec": "tsc && echo 'running apx...' && node .",
-    "prepare": "tslint ./src/** && tsc",
-    "prepublishOnly": "tsc --declarationMap false --inlineSourceMap false --inlineSources false"
+    "build": "tsc",
+    "exec": "npm run build && echo 'running apx...' && node .",
+    "prepublishOnly": "tslint ./src/** && tsc --declarationMap false --inlineSourceMap false --inlineSources false"
   },
   "dependencies": {
     "asar-require": "^0.3.0",
+    "graphql-request": "^1.8.2",
     "keytar": "^4.11.0",
     "semver": "^6.2.0",
     "tmp": "^0.1.0",
@@ -29,6 +30,7 @@
     "yargs": "^13.2.4"
   },
   "devDependencies": {
+    "@types/graphql": "^14.2.2",
     "@types/node": "^12.6.1",
     "@types/semver": "^6.0.1",
     "@types/tmp": "^0.1.0",
