@@ -41,9 +41,23 @@ export class Publish {
     return true; // TODO: Validate the entries
   }
 
-  updateVersion(version: string): Promise<void> {
+  /**
+   * Changes or bumps the version via `npm version`
+   * and resolves to the tag name.
+   * @param  version Increment or version number
+   * @return         The name of the created tag
+   */
+  updateVersion(version: string): Promise<string> {
+    const tagPrefix = "v";
     return new Promise(resolve => {
-      const child = child_process.spawn("npm", ["version", version, "-m", "Prepare v%s release"]);
+      const child = child_process.spawn("npm", [
+        "version",
+        version,
+        "-m",
+        "Prepare v%s release",
+        "--tag-version-prefix",
+        tagPrefix,
+      ]);
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", data => {
         console.log(data);
@@ -56,7 +70,7 @@ export class Publish {
         if (code) {
           throw new Error(`Version change exited with code ${code}`);
         }
-        resolve();
+        resolve(this.getMetadata().then(m => `${tagPrefix}${m.version}`));
       });
     });
   }
@@ -64,12 +78,16 @@ export class Publish {
   async handler(argv: Arguments) {
     const metadata = await this.getMetadata();
 
-    const results = await Promise.all([this.validatePackage(metadata), this.registerPackage(metadata)]);
+    const results = await Promise.all([
+      this.validatePackage(metadata),
+      this.registerPackage(metadata),
+    ]);
     console.log(results);
 
     const version = argv.newversion;
     if (version && typeof version === "string") {
-      this.updateVersion(version);
+      const newversion = await this.updateVersion(version);
+      console.log("NEW:", newversion);
     }
   }
 }
