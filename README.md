@@ -20,7 +20,7 @@ npm install -g @aerijo/apx
 
 ## Install
 
-### `<package>[@<version>]`
+### `install <package>[@<version>]`
 
 1. Poll atom.io API for <package>, with specified or latest version
 2. Extract the GitHub owner & repo
@@ -28,3 +28,27 @@ npm install -g @aerijo/apx
 4. If present, get download URL for `apx-bundled-<version>.tgz`
 5. Else, use provided tarball URL from atom.io API request
 6. Run `npm install` with selected URL
+
+## Publish
+
+### `publish [increment | version]`
+
+0. Require that the folder is a git repo and a package
+1. Require all changes have been pushed
+2. Run the following in parallel
+  1. Validate the package (not required, but useful)
+    1. Inspect the `package.json` for issues
+    2. Run `npm audit --only=prod`
+  2. Attempt to register package
+    1. 201 - successful, and first time
+    2. 400 - repository is invalid
+    3. 409 - package by that name already exists
+      1. Check if the existing package is this one or not
+  3. Run `npm version [increment | version]`
+    0. TODO: Set tag prefix to `v`with `--tag-version-prefix="v"`
+    1. And push generated commit & tag
+3. Wait for tag to be visible on GitHub
+4. Publish new version
+  1. 200 - successful
+  2. 400 - tag not found / invalid repo
+  3. 409 - version already exists

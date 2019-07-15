@@ -1,24 +1,66 @@
-import * as https from "https";
+import * as child_process from "child_process";
+import * as request from "request";
 import {GraphQLClient} from "graphql-request";
 
-export function getJson(url: string): Promise<any> {
+export type RequestOptions = request.Options;
+export interface RequestResult {
+  error: any;
+  response: request.Response;
+  body: any;
+}
+
+function getNpmConfig(): Promise<any> {
   return new Promise(resolve => {
-    console.log(`requesting ${url}`);
-
-    https.get(url, res => {
-      let message = "";
-
-      res.setEncoding("utf8");
-
-      res.on("data", data => {
-        message += data;
-      });
-
-      res.on("close", () => {
-        resolve(JSON.parse(message));
-      });
+    child_process.exec("npm config list --json", (err, stdout) => {
+      if (err) {
+        throw err;
+      }
+      resolve(JSON.parse(stdout));
     });
   });
+}
+
+let npmProxyKnown = false;
+let proxy: string | undefined;
+async function getNpmConnectionConfig(): Promise<{proxy: string | undefined}> {
+  if (!npmProxyKnown) {
+    try {
+      const config = await getNpmConfig();
+      proxy = config["https-proxy"] || config["proxy"];
+    } catch {}
+    npmProxyKnown = true;
+  }
+
+  return {proxy};
+}
+
+function requestPromise(settings: RequestOptions): Promise<RequestResult> {
+  return new Promise(resolve => {
+    request(settings, (error, response, body) => {
+      resolve({error, response, body});
+    });
+  });
+}
+
+async function _request(method: string, settings: RequestOptions): Promise<RequestResult> {
+  const config = await getNpmConnectionConfig();
+  if (config.proxy !== undefined) {
+    settings.proxy = config.proxy;
+  }
+  settings.method = method;
+  return requestPromise(settings);
+}
+
+export function get(settings: RequestOptions): Promise<RequestResult> {
+  return _request("GET", settings);
+}
+
+export function post(settings: RequestOptions): Promise<RequestResult> {
+  return _request("POST", settings);
+}
+
+export function del(settings: RequestOptions): Promise<RequestResult> {
+  return _request("DELETE", settings);
 }
 
 const githubGraphql = "https://api.github.com/graphql";

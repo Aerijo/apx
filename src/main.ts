@@ -3,6 +3,7 @@ yargs.wrap(Math.min(120, yargs.terminalWidth()));
 
 import {Context} from "./context";
 import {Install} from "./install";
+import {Publish} from "./publish";
 
 // Allow 'require' on ASAR archived files
 require("asar-require");
@@ -19,7 +20,7 @@ function getArguments(context: Context) {
     })
     .command({
       command: "install [uri]",
-      describe: "Installs a package or it's dependencies.",
+      describe: "Installs a package or it's dependencies",
       builder() {
         return yargs
           .positional("uri", {
@@ -40,6 +41,22 @@ function getArguments(context: Context) {
       handler(argv) {
         const install = new Install(context);
         install.handler(argv);
+      },
+    })
+    .command({
+      command: "publish [newversion]",
+      describe: "Publish the package",
+      builder() {
+        return yargs.positional("newversion", {
+          describe:
+            "Optionally specify version bump, from patch, minor, major, or explicit of form x.y.z",
+          type: "string",
+          default: "",
+        });
+      },
+      handler(argv) {
+        const publish = new Publish(context);
+        publish.handler(argv);
       },
     })
     .parse();

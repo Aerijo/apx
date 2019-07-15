@@ -8,7 +8,8 @@ import * as tmp from "tmp";
 tmp.setGracefulCleanup();
 
 import {Context} from "./context";
-import {getJson, getGithubGraphql} from "./request";
+import {get, getGithubGraphql} from "./request";
+import {getGithubOwnerRepo} from "./package";
 
 export class Install {
   context: Context;
@@ -77,27 +78,6 @@ export class Install {
     console.log("installing dependencies... (TODO)");
   }
 
-  getGithubOwnerRepo(release: any): {owner: string; repo: string} {
-    let repoUrl = release.repository;
-    if (repoUrl && release.repository.url) {
-      repoUrl = release.repository.url;
-    }
-
-    if (typeof repoUrl !== "string") {
-      throw new Error("Expected repository URL");
-    }
-
-    const githubRegex = /^https:\/\/github\.com\/([a-zA-A0-9\-]+?)\/([a-zA-Z0-9\-\._]+?)(\/|\.git)?$/;
-    const match = githubRegex.exec(repoUrl);
-
-    if (!match) {
-      throw new Error("Could not retrieve GitHub owner and repo");
-    }
-
-    const [, owner, repo] = match;
-    return {owner, repo};
-  }
-
   // TODO: Support for builds split by OS & Electron version
   async getGithubRelease(
     owner: string,
@@ -128,7 +108,7 @@ export class Install {
 
   async getPackageTarball(name: string, version: string | undefined): Promise<string> {
     const requestUrl = `${this.context.getAtomPackagesUrl()}/${name}`;
-    const message = await getJson(requestUrl);
+    const message = (await get({url: requestUrl, json: true})).body;
 
     if (!message) {
       throw new Error(`Could not retrieve package data for ${name}`);
@@ -147,7 +127,7 @@ export class Install {
       throw new Error(`Could not retrieve version ${version} of package ${name}`);
     }
 
-    const {owner, repo} = this.getGithubOwnerRepo(release);
+    const {owner, repo} = getGithubOwnerRepo(release);
 
     const githubTarball = await this.getGithubRelease(owner, repo, "apx-test", version);
 
@@ -160,6 +140,7 @@ export class Install {
   }
 
   async handler(argv: Arguments) {
+    console.log(argv);
     let packageName = argv.uri as string;
     let version;
 
