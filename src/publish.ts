@@ -3,7 +3,7 @@ import {Context} from "./context";
 import {Arguments} from "yargs";
 import * as fs from "fs";
 import {getGithubOwnerRepo} from "./package";
-import {post} from "./request";
+import {post, getAtomioErrorMessage, getGithubGraphql} from "./request";
 import {getToken} from "./auth";
 
 export class Publish {
@@ -34,10 +34,20 @@ export class Publish {
       body: {repository},
       headers: {authorization: token},
     });
-    return result.response.statusCode;
+
+    const status = result.response.statusCode;
+    if (status === 201) {
+      console.log(`Registered new package ${metadata.name}`);
+    } else if (status === 409) {
+      console.log(`Package already registered`);
+    } else {
+      throw new Error(getAtomioErrorMessage(result));
+    }
+
+    return status;
   }
 
-  async validatePackage(_packageJson: any): Promise<boolean> {
+  async validatePackage(_metadata: any): Promise<boolean> {
     return true; // TODO: Validate the entries
   }
 
@@ -75,6 +85,82 @@ export class Publish {
     });
   }
 
+  /**
+   * Push the commit and tag created by `npm version`. Returns
+   * a promise that resolves when the tag is visible on GitHub,
+   * or is rejected after too many checks.
+   * @param  tag The name of the tag to be pushed
+   * @return     Promise that resolves when visible on GitHub
+   */
+  pushVersionAndTag(tag: string): Promise<boolean> {
+    return new Promise(resolve => {
+      console.log(`Pushing tag ${tag}`);
+      child_process.exec("git push --follow-tags", err => {
+        if (err) {
+          throw err;
+        }
+        resolve(this.awaitGitHubTag(tag));
+      });
+    });
+  }
+
+  async awaitGitHubTag(tag: string): Promise<boolean> {
+    const metadata = await this.getMetadata();
+    const {owner, repo} = getGithubOwnerRepo(metadata);
+    const query = `{
+      repository(owner:"${owner}" name:"${repo}") {
+        refs(refPrefix:"refs/tags/", first:1, orderBy:{field: TAG_COMMIT_DATE, direction: DESC}) {
+          nodes {
+            name
+          }
+        }
+      }
+    }`;
+
+    // TODO: Actually might not be latest tag. Should check all of them.
+    for (let i = 0; i < 5; i++) {
+      const data = await getGithubGraphql(query);
+      try {
+        const latestTag = data.repository.refs.nodes[0].name;
+        if (latestTag === tag) {
+          console.log(`Detected tag ${tag} on GitHub ${owner}/${repo}`);
+          return true;
+        }
+      } catch {}
+
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    throw new Error(`Could not detect tag on GitHub ${owner}/${repo}`);
+  }
+
+  async publishVersion(tag: string): Promise<number> {
+    const metadata = await this.getMetadata();
+    const name = metadata.name;
+    const token = await getToken();
+    const result = await post({
+      url: `${this.context.getAtomPackagesUrl()}/${name}/versions`,
+      json: true,
+      body: {
+        tag,
+        rename: false,
+      },
+      headers: {
+        authorization: token,
+      },
+    });
+
+    const status = result.response.statusCode;
+
+    if (status === 201) {
+      console.log(`Successfully published version ${tag}`);
+    } else {
+      throw new Error(getAtomioErrorMessage(result));
+    }
+
+    return status;
+  }
+
   async handler(argv: Arguments) {
     const metadata = await this.getMetadata();
 
@@ -82,12 +168,17 @@ export class Publish {
       this.validatePackage(metadata),
       this.registerPackage(metadata),
     ]);
-    console.log(results);
+
+    if (!results[0]) {
+      throw new Error("Package validation failed");
+    }
 
     const version = argv.newversion;
     if (version && typeof version === "string") {
-      const newversion = await this.updateVersion(version);
-      console.log("NEW:", newversion);
+      const tag = await this.updateVersion(version);
+      console.log(`Updated version to ${tag}`);
+      await this.pushVersionAndTag(tag);
+      await this.publishVersion(tag);
     }
   }
 }

@@ -63,6 +63,21 @@ export function del(settings: RequestOptions): Promise<RequestResult> {
   return _request("DELETE", settings);
 }
 
+export function getAtomioErrorMessage (result: RequestResult): string {
+  if (result.response.statusCode === 503) {
+    return "https://atom.io is temporarily unavailable, please try again later";
+  }
+
+  switch (typeof result.body) {
+    case "object":
+      return result.body.message || result.body.error;
+    case "string":
+      return result.body;
+    default:
+      return `${result.response.statusCode}`;
+  }
+}
+
 const githubGraphql = "https://api.github.com/graphql";
 const graphQLClient = new GraphQLClient(githubGraphql, {
   headers: {
