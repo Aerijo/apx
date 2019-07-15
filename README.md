@@ -52,3 +52,4 @@ npm install -g @aerijo/apx
   1. 200 - successful
   2. 400 - tag not found / invalid repo
   3. 409 - version already exists
+5. Prepare and load assets to GitHub
