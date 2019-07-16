@@ -45,11 +45,15 @@ npm install -g @aerijo/apx
         3. 409 - package by that name already exists
             1. Check if the existing package is this one or not
     3. Run `npm version [increment | version]`
-        0. TODO: Set tag prefix to `v`with `--tag-version-prefix="v"`
         1. And push generated commit & tag
 3. Wait for tag to be visible on GitHub
-4. Publish new version
+4. Declare new version to atom.io
     1. 200 - successful
     2. 400 - tag not found / invalid repo
     3. 409 - version already exists
 5. Prepare and load assets to GitHub
+    1. run prepublishOnly
+    2. npm pack
+    3. upload
+    4. publish (warn?)
+    5. postpublish
