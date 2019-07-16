@@ -61,14 +61,13 @@ export class Publish {
   updateVersion(version: string): Promise<string> {
     const tagPrefix = "v";
     return new Promise(resolve => {
-      const child = child_process.spawn("npm", [
-        "version",
-        version,
-        "-m",
-        "Prepare v%s release",
-        "--tag-version-prefix",
-        tagPrefix,
-      ]);
+      const child = child_process.spawn(
+        "npm",
+        ["version", version, "-m", "Prepare v%s release", "--tag-version-prefix", tagPrefix],
+        {
+          env: this.context.getElectronEnv(),
+        }
+      );
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", data => {
         console.log(data);
@@ -96,7 +95,7 @@ export class Publish {
   pushVersionAndTag(tag: string): Promise<boolean> {
     return new Promise(resolve => {
       console.log(`Pushing tag ${tag}`);
-      child_process.exec("git push --follow-tags", err => {
+      child_process.exec("git push --follow-tags", {env: this.context.getElectronEnv()}, err => {
         if (err) {
           throw err;
         }
@@ -219,10 +218,15 @@ export class Publish {
       throw new Error(`File ${tarName} cannot exist when publishing`);
     }
 
-    const prepOut = child_process.execSync("npm run prepublishOnly", {encoding: "utf8"});
+    const prepOut = child_process.execSync("npm run prepublishOnly", {
+      encoding: "utf8",
+      env: this.context.getElectronEnv(),
+    });
     console.log(prepOut);
 
-    console.log(child_process.execSync("npm pack", {encoding: "utf8"}));
+    console.log(
+      child_process.execSync("npm pack", {encoding: "utf8", env: this.context.getElectronEnv()})
+    );
 
     return tarName;
   }

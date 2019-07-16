@@ -1,6 +1,7 @@
 import * as child_process from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import * as semver from "semver";
 import {SemVer} from "semver";
 
@@ -152,5 +153,20 @@ export class Context {
 
   getElectronArch(): string {
     return process.env.ATOM_ARCH || process.arch;
+  }
+
+  // See https://electronjs.org/docs/tutorial/using-native-node-modules#using-npm
+  getElectronEnv(): {[key: string]: string} {
+    return {
+      ...process.env,
+      // USERPROFILE: path.resolve(os.homedir(), ".electron-gyp"), // Cannot blanket set, as home dir is needed by things like git
+      // HOME: path.resolve(os.homedir(), ".electron-gyp"),
+      npm_config_runtime: "electron",
+      npm_config_target: this.getElectronVersion().version,
+      npm_config_dist_url: this.getElectronUrl(),
+      npm_config_arch: this.getElectronArch(),
+      npm_config_target_arch: this.getElectronArch(), // for node-pre-gyp
+      npm_config_python: "python2", // TODO: does this work?
+    };
   }
 }

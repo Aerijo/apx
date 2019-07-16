@@ -24,27 +24,16 @@ export class Install {
     tryMakeDir(this.context.getAtomNodeDirectory());
   }
 
-  getElectronBuildFlags(): string[] {
-    return [
-      `--target=${this.context.getElectronVersion().version}`,
-      `--disturl=${this.context.getElectronUrl()}`,
-      `--arch=${this.context.getElectronArch()}`,
-    ];
-  }
-
   installFromUrl(tarballUrl: string) {
     const installDir = tmp.dirSync({prefix: "apx-install-", unsafeCleanup: true});
     const modulesDir = path.join(installDir.name, "node_modules");
     fs.mkdirSync(modulesDir);
 
-    const result = child_process.spawnSync(
-      "npm",
-      ["install", "--global-style", tarballUrl, ...this.getElectronBuildFlags()],
-      {
-        cwd: installDir.name,
-        encoding: "utf8",
-      }
-    );
+    const result = child_process.spawnSync("npm", ["install", "--global-style", tarballUrl], {
+      cwd: installDir.name,
+      env: this.context.getElectronEnv(),
+      encoding: "utf8",
+    });
 
     console.log(result.stdout);
 
