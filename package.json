@@ -23,6 +23,7 @@
     "fix-lint": "prettier --check --write --ignore-path .gitignore **/*"
   },
   "dependencies": {
+    "@octokit/rest": "^16.28.4",
     "asar-require": "^0.3.0",
     "graphql-request": "^1.8.2",
     "keytar": "^4.11.0",
