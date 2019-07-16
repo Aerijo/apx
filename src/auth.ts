@@ -25,3 +25,10 @@ export async function getToken(): Promise<string> {
 export function setToken(token: string): Promise<void> {
   return keytar.setPassword(tokenName, account, token);
 }
+
+export async function getGithubRestToken(): Promise<string> {
+  if (typeof process.env.GITHUB_AUTH_TOKEN === "string") {
+    return process.env.GITHUB_AUTH_TOKEN;
+  }
+  throw new Error("GitHub API token required in environment variable GITHUB_AUTH_TOKEN");
+}

@@ -1,10 +1,11 @@
+import {promisify as pf} from "util";
 import * as child_process from "child_process";
-import {Context} from "./context";
 import {Arguments} from "yargs";
 import * as fs from "fs";
+import {Context} from "./context";
 import {getGithubOwnerRepo} from "./package";
-import {post, getAtomioErrorMessage, getGithubGraphql} from "./request";
-import {getToken} from "./auth";
+import {post, getAtomioErrorMessage, getGithubGraphql, RequestResult, uploadAsset} from "./request";
+import {getToken, getGithubRestToken} from "./auth";
 
 export class Publish {
   context: Context;
@@ -117,6 +118,8 @@ export class Publish {
       }
     }`;
 
+    console.log(`Looking for tag ${tag} on GitHub ${owner}/${repo}`);
+
     // TODO: Actually might not be latest tag. Should check all of them.
     for (let i = 0; i < 5; i++) {
       const data = await getGithubGraphql(query);
@@ -128,6 +131,7 @@ export class Publish {
         }
       } catch {}
 
+      console.log("Did not find tag. Retrying in 1 second");
       await new Promise(r => setTimeout(r, 1000));
     }
 
@@ -161,7 +165,90 @@ export class Publish {
     return status;
   }
 
+  async createRelease(tag: string): Promise<RequestResult> {
+    const [metadata, token] = await Promise.all([this.getMetadata(), getGithubRestToken()]);
+    const {owner, repo} = getGithubOwnerRepo(metadata);
+
+    console.log(`Creating GitHub ${owner}/${repo} release for tag ${tag}`);
+    const result = await post({
+      url: `${this.context.getGithubApiUrl()}/repos/${owner}/${repo}/releases`,
+      json: true,
+      body: {
+        tag_name: tag,
+      },
+      auth: {
+        user: owner,
+        pass: token,
+      },
+      headers: {
+        "User-Agent": "atom-apx",
+      },
+    });
+
+    return result;
+  }
+
+  async generateReleaseAssets(): Promise<string> {
+    const metadata = await this.getMetadata();
+
+    if (typeof metadata.name !== "string") {
+      throw new Error("Could not detect package name");
+    }
+    if (typeof metadata.version !== "string") {
+      throw new Error("Could not detect package version");
+    }
+
+    const name: string = metadata.name.startsWith("@")
+      ? metadata.name.slice(1).replace(/\//g, "-")
+      : metadata.name;
+
+    const version: string = metadata.version;
+
+    const tarName = `${name}-${version}.tgz`;
+
+    let exists = true;
+    try {
+      await pf(fs.access)(`./${tarName}`);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        exists = false;
+      }
+    }
+
+    if (exists) {
+      throw new Error(`File ${tarName} cannot exist when publishing`);
+    }
+
+    const prepOut = child_process.execSync("npm run prepublishOnly", {encoding: "utf8"});
+    console.log(prepOut);
+
+    console.log(child_process.execSync("npm pack", {encoding: "utf8"}));
+
+    return tarName;
+  }
+
+  async uploadAssets(releaseData: any, tarname: string): Promise<number> {
+    const status = await uploadAsset(
+      releaseData["upload_url"],
+      `apx-bundled-${tarname}`,
+      "text/plain",
+      fs.readFileSync(tarname)
+    );
+    fs.unlinkSync(tarname);
+    if (status === 201) {
+      console.log("Successfully published package asset");
+    } else {
+      console.log(`Error publishing package asset: status ${status}`);
+    }
+    return status;
+  }
+
   async handler(argv: Arguments) {
+    const version = argv.newversion;
+    if (typeof version !== "string") {
+      console.log("Missing version not currently supported");
+      return;
+    }
     const metadata = await this.getMetadata();
 
     const results = await Promise.all([
@@ -173,12 +260,20 @@ export class Publish {
       throw new Error("Package validation failed");
     }
 
-    const version = argv.newversion;
-    if (version && typeof version === "string") {
-      const tag = await this.updateVersion(version);
-      console.log(`Updated version to ${tag}`);
-      await this.pushVersionAndTag(tag);
-      await this.publishVersion(tag);
+    const tag = await this.updateVersion(version);
+    console.log(`Updated version to ${tag}`);
+
+    await this.pushVersionAndTag(tag);
+    await this.publishVersion(tag);
+
+    const releaseResult = await this.createRelease(tag);
+    if (releaseResult.response.statusCode !== 201) {
+      console.log("Could not create release");
+      return;
     }
+
+    const tarName = await this.generateReleaseAssets();
+
+    await this.uploadAssets(releaseResult.body, tarName);
   }
 }
