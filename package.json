@@ -20,7 +20,8 @@
     "exec": "npm run build && echo 'running apx...' && node .",
     "prepublishOnly": "npm run lint && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
     "lint": "prettier --check --ignore-path .gitignore **/*",
-    "fix-lint": "prettier --check --write --ignore-path .gitignore **/*"
+    "fix-lint": "prettier --check --write --ignore-path .gitignore **/*",
+    "postversion": "git push --folow-tags"
   },
   "dependencies": {
     "@octokit/rest": "^16.28.4",
