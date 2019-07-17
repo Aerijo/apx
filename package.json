@@ -7,7 +7,8 @@
     "url": "https://github.com/Aerijo/apx"
   },
   "files": [
-    "/dist"
+    "/dist",
+    "/resources"
   ],
   "bin": {
     "apx": "./dist/cli.js"
@@ -17,6 +18,7 @@
   "name": "@aerijo/apx",
   "scripts": {
     "build": "tsc",
+    "watch": "tsc --watch",
     "exec": "npm run build && echo 'running apx...' && node .",
     "prepublishOnly": "npm run lint && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
     "lint": "prettier --check --ignore-path .gitignore **/*",
