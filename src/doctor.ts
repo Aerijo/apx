@@ -53,8 +53,8 @@ export class Doctor {
       let out = "";
       child.stdout.setEncoding("utf8");
       child.stderr.setEncoding("utf8");
-      child.stdout.on("data", d => out += d);
-      child.stderr.on("data", d => out += d);
+      child.stdout.on("data", d => (out += d));
+      child.stderr.on("data", d => (out += d));
 
       child.on("exit", (code, _status) => {
         if (code) {
