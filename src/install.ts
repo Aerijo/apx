@@ -63,8 +63,20 @@ export class Install {
     installDir.removeCallback();
   }
 
-  installDependencies(_argv: Arguments) {
-    console.log("installing dependencies... (TODO)");
+  installDependencies(_argv: Arguments): Promise<number> {
+    return new Promise(resolve => {
+      console.log("Installing dependencies");
+      const child = child_process.spawn("npm", ["install"], {env: this.context.getElectronEnv()});
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+
+      child.stdout.on("data", data => {console.log(data)});
+      child.stderr.on("data", data => {console.error(data)});
+
+      child.on("exit", (code, _signal) => {
+        resolve(code || 0);
+      });
+    })
   }
 
   // TODO: Support for builds split by OS & Electron version
@@ -129,11 +141,10 @@ export class Install {
   }
 
   async handler(argv: Arguments) {
-    console.log(argv);
     let packageName = argv.uri as string;
     let version;
 
-    if (packageName === ".") {
+    if (!packageName || packageName === ".") {
       this.installDependencies(argv);
       return;
     }

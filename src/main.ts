@@ -4,6 +4,7 @@ yargs.wrap(Math.min(120, yargs.terminalWidth()));
 import {Context} from "./context";
 import {Install} from "./install";
 import {Publish} from "./publish";
+import { Doctor } from './doctor';
 
 // Allow 'require' on ASAR archived files
 require("asar-require");
@@ -58,6 +59,14 @@ function getArguments(context: Context) {
         const publish = new Publish(context);
         publish.handler(argv);
       },
+    })
+    .command({
+      command: "doctor",
+      describe: "Verify that your installation is working correctly",
+      handler(argv) {
+        const doctor = new Doctor(context);
+        return doctor.handler(argv);
+      }
     })
     .parse();
 }
