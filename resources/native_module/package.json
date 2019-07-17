@@ -1,0 +1,4 @@
+{
+  "name": "apx-native-module",
+  "main": "./lib/main.js"
+}
