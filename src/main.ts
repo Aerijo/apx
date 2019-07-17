@@ -4,13 +4,14 @@ yargs.wrap(Math.min(120, yargs.terminalWidth()));
 import {Context} from "./context";
 import {Install} from "./install";
 import {Publish} from "./publish";
-import { Doctor } from './doctor';
+import {Doctor} from "./doctor";
 
 // Allow 'require' on ASAR archived files
-require("asar-require");
+import "asar-require";
 
 function getArguments(context: Context) {
   return yargs
+    .demandCommand(1)
     .option("version", {
       alias: "v",
       describe: "Print the apx version",
@@ -66,21 +67,14 @@ function getArguments(context: Context) {
       handler(argv) {
         const doctor = new Doctor(context);
         return doctor.handler(argv);
-      }
+      },
     })
     .parse();
 }
 
 export function main(): number {
   const context = new Context();
-
-  const argv = getArguments(context);
-  const command = argv._[0];
-
-  if (!command) {
-    yargs.showHelp();
-  }
-
+  getArguments(context);
   return 0;
 }
 
