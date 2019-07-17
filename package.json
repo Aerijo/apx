@@ -31,6 +31,7 @@
     "graphql-request": "^1.8.2",
     "keytar": "^4.11.0",
     "request": "^2.88.0",
+    "rimraf": "^2.6.3",
     "semver": "^6.2.0",
     "tmp": "^0.1.0",
     "validate-npm-package-name": "^3.0.0",
@@ -39,6 +40,7 @@
   "devDependencies": {
     "@types/node": "^12.6.1",
     "@types/request": "^2.48.2",
+    "@types/rimraf": "^2.0.2",
     "@types/semver": "^6.0.1",
     "@types/tmp": "^0.1.0",
     "@types/yargs": "^13.0.0",
