@@ -163,7 +163,7 @@ export class Context {
       // HOME: path.resolve(os.homedir(), ".electron-gyp"),
       npm_config_runtime: "electron",
       npm_config_target: this.getElectronVersion().version,
-      npm_config_dist_url: this.getElectronUrl(),
+      npm_config_disturl: this.getElectronUrl(),
       npm_config_arch: this.getElectronArch(),
       npm_config_target_arch: this.getElectronArch(), // for node-pre-gyp
       npm_config_python: "python2", // TODO: does this work?
