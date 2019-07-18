@@ -71,9 +71,14 @@ export class Doctor {
     });
   }
 
+  async doctorAtom (): Promise<number> {
+    return 0; // TODO: Verify the Atom install & .atom folder is valid
+  }
+
   async handler(_argv: Arguments): Promise<number> {
     await this.checkNativeBuild();
     await this.doctorNpm();
+    await this.doctorAtom();
     return 0;
   }
 }

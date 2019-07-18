@@ -8,6 +8,7 @@ import {Doctor} from "./doctor";
 
 // Allow 'require' on ASAR archived files
 import "asar-require";
+import { Uninstall } from './uninstall';
 
 function getArguments(context: Context) {
   return yargs
@@ -43,6 +44,20 @@ function getArguments(context: Context) {
       handler(argv) {
         const install = new Install(context);
         install.handler(argv);
+      },
+    })
+    .command({
+      command: "uninstall <package>",
+      describe: "Uninstall a package",
+      builder() {
+        return yargs.positional("package", {
+          describe: "The name of the package to uninstall. A path is not permitted.",
+          type: "string",
+        });
+      },
+      handler(argv) {
+        const uninstall = new Uninstall(context);
+        return uninstall.handler(argv);
       },
     })
     .command({
