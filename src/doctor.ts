@@ -71,7 +71,7 @@ export class Doctor {
     });
   }
 
-  async doctorAtom (): Promise<number> {
+  async doctorAtom(): Promise<number> {
     return 0; // TODO: Verify the Atom install & .atom folder is valid
   }
 

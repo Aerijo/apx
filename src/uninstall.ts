@@ -1,5 +1,5 @@
-import { Context } from './context';
-import { Arguments } from 'yargs';
+import {Context} from "./context";
+import {Arguments} from "yargs";
 import * as fs from "fs";
 
 export class Uninstall {
@@ -15,7 +15,7 @@ export class Uninstall {
 
     const packagesDir = this.context.getAtomPackagesDirectory();
 
-    fs.stat
+    fs.stat;
 
     return 0;
   }

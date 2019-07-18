@@ -8,7 +8,7 @@ import {Doctor} from "./doctor";
 
 // Allow 'require' on ASAR archived files
 import "asar-require";
-import { Uninstall } from './uninstall';
+import {Uninstall} from "./uninstall";
 
 function getArguments(context: Context) {
   return yargs
