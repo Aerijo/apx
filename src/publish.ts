@@ -158,7 +158,7 @@ export class Publish {
     if (status === 201) {
       console.log(`Successfully published version ${tag}`);
     } else {
-      throw new Error(getAtomioErrorMessage(result));
+      throw new Error(`Status ${status}: ${getAtomioErrorMessage(result)}`);
     }
 
     return status;
