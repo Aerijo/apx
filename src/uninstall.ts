@@ -2,7 +2,7 @@ import {Context} from "./context";
 import {Arguments} from "yargs";
 import * as fs from "fs";
 import * as path from "path";
-import { getMetadata } from './package';
+import {getMetadata} from "./package";
 import * as rimraf from "rimraf";
 import * as child_process from "child_process";
 
@@ -15,7 +15,13 @@ export class Uninstall {
 
   runScript(name: string, scripts: any, cwd: string): Promise<void> {
     if (typeof scripts[name] === "string") {
-      console.log(child_process.spawnSync("npm", ["run", name], {encoding: "utf8", env: this.context.getElectronEnv(), cwd}).stdout);
+      console.log(
+        child_process.spawnSync("npm", ["run", name], {
+          encoding: "utf8",
+          env: this.context.getElectronEnv(),
+          cwd,
+        }).stdout
+      );
     }
     return Promise.resolve();
   }
