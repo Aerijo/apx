@@ -1,14 +1,14 @@
 # About
 
 Features:
-[X] doctor; inspect installation
-[ ] clean; clean up Atom's config.cson, removing duplicates, uninstalled package settings, etc.
-[X] install; install package from atom.io. Look for `apx-bundle-<version>.tar.gz` over source code.
-[X] uninstall; uninstall package (fail on symlink)
-[X] publish; register package version to atom.io & upload assets to GitHub
-[ ] link; symlink to packages
-[ ] unlink; remove symlink
-[ ] info <package>; log package details
+- [X] doctor; inspect installation
+- [ ] clean; clean up Atom's config.cson, removing duplicates, uninstalled package settings, etc.
+- [X] install; install package from atom.io. Look for `apx-bundle-<version>.tar.gz` over source code.
+- [X] uninstall; uninstall package (fail on symlink)
+- [X] publish; register package version to atom.io & upload assets to GitHub
+- [ ] link; symlink to packages
+- [ ] unlink; remove symlink
+- [ ] info <package>; log package details
 
 # Installation
 1. Have npm and NodeJS installed. Using a version manager, such as `nvm`, is highly recommended.
