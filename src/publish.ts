@@ -3,26 +3,17 @@ import * as child_process from "child_process";
 import {Arguments} from "yargs";
 import * as fs from "fs";
 import {Context} from "./context";
-import {getGithubOwnerRepo} from "./package";
+import {getGithubOwnerRepo, getMetadata} from "./package";
 import {post, getAtomioErrorMessage, getGithubGraphql, RequestResult, uploadAsset} from "./request";
 import {getToken, getGithubRestToken} from "./auth";
 
 export class Publish {
   context: Context;
+  cwd: string;
 
   constructor(context: Context) {
     this.context = context;
-  }
-
-  getMetadata(): Promise<any> {
-    return new Promise(resolve => {
-      fs.readFile("package.json", {encoding: "utf8"}, (err, data) => {
-        if (err) {
-          throw err;
-        }
-        resolve(JSON.parse(data));
-      });
-    });
+    this.cwd = process.cwd();
   }
 
   async registerPackage(metadata: any): Promise<number> {
@@ -80,7 +71,7 @@ export class Publish {
         if (code) {
           throw new Error(`Version change exited with code ${code}`);
         }
-        resolve(this.getMetadata().then(m => `${tagPrefix}${m.version}`));
+        resolve(getMetadata(this.cwd).then(m => `${tagPrefix}${m.version}`));
       });
     });
   }
@@ -105,7 +96,7 @@ export class Publish {
   }
 
   async awaitGitHubTag(tag: string): Promise<boolean> {
-    const metadata = await this.getMetadata();
+    const metadata = await getMetadata(this.cwd);
     const {owner, repo} = getGithubOwnerRepo(metadata);
     const query = `{
       repository(owner:"${owner}" name:"${repo}") {
@@ -138,7 +129,7 @@ export class Publish {
   }
 
   async publishVersion(tag: string): Promise<number> {
-    const metadata = await this.getMetadata();
+    const metadata = await getMetadata(this.cwd);
     const name = metadata.name;
     const token = await getToken();
     const result = await post({
@@ -165,7 +156,7 @@ export class Publish {
   }
 
   async createRelease(tag: string): Promise<RequestResult> {
-    const [metadata, token] = await Promise.all([this.getMetadata(), getGithubRestToken()]);
+    const [metadata, token] = await Promise.all([getMetadata(this.cwd), getGithubRestToken()]);
     const {owner, repo} = getGithubOwnerRepo(metadata);
 
     console.log(`Creating GitHub ${owner}/${repo} release for tag ${tag}`);
@@ -188,7 +179,7 @@ export class Publish {
   }
 
   async generateReleaseAssets(): Promise<string> {
-    const metadata = await this.getMetadata();
+    const metadata = await getMetadata(this.cwd);
 
     if (typeof metadata.name !== "string") {
       throw new Error("Could not detect package name");
@@ -253,7 +244,7 @@ export class Publish {
       console.log("Missing version not currently supported");
       return;
     }
-    const metadata = await this.getMetadata();
+    const metadata = await getMetadata(this.cwd);
 
     const results = await Promise.all([
       this.validatePackage(metadata),
