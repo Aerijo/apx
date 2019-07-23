@@ -22,7 +22,7 @@ export function getGithubOwnerRepo(metadata: any): {owner: string; repo: string}
     throw new Error("Expected repository URL");
   }
 
-  const githubRegex = /^https:\/\/github\.com\/([a-zA-A0-9\-]+?)\/([a-zA-Z0-9\-\._]+?)(\/|\.git)?$/;
+  const githubRegex = /^https:\/\/github\.com\/([a-zA-Z0-9\-]+?)\/([a-zA-Z0-9\-\._]+?)(\/|\.git)?$/;
   const match = githubRegex.exec(repoUrl);
 
   if (!match) {

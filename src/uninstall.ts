@@ -42,13 +42,12 @@ export class Uninstall {
     const metadata = await getMetadata(packageDir);
 
     const scripts = metadata.scripts;
-    if (typeof scripts !== "object") {
-      rimraf.sync(packageDir);
-    } else {
+    if (typeof scripts === "object") {
       await this.runScript("uninstall", scripts, packageDir); // also runs pre & post
-      console.log("removing", packageDir);
-      rimraf.sync(packageDir);
     }
+
+    console.log("removing", packageDir);
+    rimraf.sync(packageDir);
 
     return 0;
   }
