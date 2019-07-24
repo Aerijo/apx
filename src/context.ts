@@ -16,7 +16,6 @@ export class Context {
 
   constructor() {
     this.config = this.loadConfig();
-    console.log(this.config);
   }
 
   getConfigPath(): string {
@@ -231,7 +230,7 @@ export class Context {
   setDefault(name: string, value: string) {
     this.config[name] = value;
     this.storeConfig();
-    console.log(this.config);
+    console.log("New config:", this.config);
   }
 
   getConfig(): {[key: string]: any} {
