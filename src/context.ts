@@ -2,28 +2,50 @@ import * as child_process from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as semver from "semver";
+import * as os from "os";
 import {SemVer} from "semver";
 
 export class Context {
-  private homeDirectory: string | undefined;
   private atomDirectory: string | undefined;
   private resourceDirectory: string | undefined;
   private reposDirectory: string | undefined;
   private atomVersion: SemVer | undefined;
   private electronVersion: SemVer | undefined;
+  private readonly config: {[key: string]: any};
+  private target: string | undefined;
+
+  constructor() {
+    this.config = this.loadConfig();
+    console.log(this.config);
+  }
+
+  getConfigPath(): string {
+    return process.env.APX_CONFIG_PATH || path.join(this.getAtomDirectory(), ".apxrc");
+  }
+
+  loadConfig(): Object {
+    const configPath = this.getConfigPath();
+    try {
+      return JSON.parse(fs.readFileSync(configPath, {encoding: "utf8"}));
+    } catch {
+      return {};
+    }
+  }
+
+  storeConfig() {
+    const configPath = this.getConfigPath();
+    const configContents = JSON.stringify(this.config, undefined, 2);
+    fs.writeFileSync(configPath, configContents, {encoding: "utf8"});
+    return;
+  }
 
   isWindows(): boolean {
     return process.platform === "win32";
   }
 
   getHomeDirectory(): string {
-    if (!this.homeDirectory) {
-      this.homeDirectory = this.isWindows() ? process.env.USERPROFILE : process.env.HOME;
-      if (!this.homeDirectory) {
-        throw new Error("Could not locate home directory");
-      }
-    }
-    return this.homeDirectory;
+    // NOTE: This method allows for env variable to be created in the future
+    return os.homedir();
   }
 
   getAtomDirectory(): string {
@@ -33,13 +55,21 @@ export class Context {
     return this.atomDirectory;
   }
 
-  calculateResourceDirectory(): string {
+  calculateResourceDirectory(target: string): string {
     if (process.env.ATOM_RESOURCE_PATH) {
       return process.env.ATOM_RESOURCE_PATH;
     }
 
+    if (target !== "stable" && target !== "beta" && target !== "nightly" && target !== "dev") {
+      throw new Error(`Invalid Atom target "${target}"`);
+    }
+
+    if (target === "dev") {
+      return path.join(this.getReposDirectory(), "atom");
+    }
+
     // TODO: Support Windows
-    let appLocation;
+    const appLocations: string[] = [];
     if (process.platform === "darwin") {
       const apps = child_process
         .execSync("mdfind \"kMDItemCFBundleIdentifier == 'com.github.atom'\"", {
@@ -48,29 +78,53 @@ export class Context {
         })
         .split("\n");
 
-      appLocation =
-        apps.length > 0
-          ? `${apps[0]}/Contents/Resources/app.asar` // TODO: Configurable by flag?
-          : "/Applications/Atom.app/Contents/Resources/app.asar";
-    } else if (process.platform === "linux") {
-      appLocation = "/usr/local/share/atom/resources/app.asar";
-      if (!fs.existsSync(appLocation)) {
-        appLocation = "/usr/share/atom/resources/app.asar";
+      const appName = new Map([
+        ["stable", "Atom.app"],
+        ["beta", "Atom Beta.app"],
+        ["nightly", "Atom Nightly.app"],
+        ["dev", "Atom Dev.app"],
+      ]).get(target);
+
+      if (apps.length > 0) {
+        for (const dir of apps) {
+          if (path.basename(dir) === appName) {
+            appLocations.push(`${dir}/Contents/Resources/app.asar`);
+            break;
+          }
+        }
       }
+      appLocations.push(`/Applications/${appName}/Contents/Resources/app.asar`);
+    } else if (process.platform === "linux") {
+      const appName = new Map([
+        ["stable", "atom"],
+        ["beta", "atom-beta"],
+        ["nightly", "atom-nightly"],
+        ["dev", "atom-dev"],
+      ]).get(target);
+      appLocations.push(
+        `/usr/local/share/${appName}/resources/app.asar`,
+        `/usr/share/${appName}/resources/app.asar`
+      );
     } else {
       throw new Error(`Platform ${process.platform} not supported`);
     }
 
-    if (!fs.existsSync(appLocation)) {
-      throw new Error("Could not locate Atom resources path");
+    for (const location of appLocations) {
+      if (fs.existsSync(location)) {
+        return location;
+      }
     }
 
-    return appLocation;
+    throw new Error("Could not locate Atom resources path");
   }
 
-  getResourceDirectory(): string {
-    if (!this.resourceDirectory) {
-      this.resourceDirectory = this.calculateResourceDirectory();
+  getResourceDirectory(target?: string): string {
+    if (!this.resourceDirectory || target !== this.target) {
+      if (!target && typeof this.config["target"] === "string") {
+        target = this.config["target"];
+      }
+      this.resourceDirectory = this.calculateResourceDirectory(target || "stable");
+      this.target = target;
     }
     return this.resourceDirectory;
   }
@@ -155,9 +209,8 @@ export class Context {
   }
 
   // See https://electronjs.org/docs/tutorial/using-native-node-modules#using-npm
-  getElectronEnv(): {[key: string]: string} {
-    return {
-      ...process.env,
+  getElectronEnv(includeDefault: boolean = true): {[key: string]: string} {
+    const electronVars = {
       // USERPROFILE: path.resolve(os.homedir(), ".electron-gyp"), // Cannot blanket set, as home dir is needed by things like git
       // HOME: path.resolve(os.homedir(), ".electron-gyp"),
       npm_config_runtime: "electron",
@@ -167,5 +220,21 @@ export class Context {
       npm_config_target_arch: this.getElectronArch(), // for node-pre-gyp
       npm_config_python: "python2", // TODO: does this work?
     };
+
+    return includeDefault ? {...process.env, ...electronVars} : electronVars;
+  }
+
+  getDefault(name: string): string | undefined {
+    return this.config[name];
+  }
+
+  setDefault(name: string, value: string) {
+    this.config[name] = value;
+    this.storeConfig();
+    console.log(this.config);
+  }
+
+  getConfig(): {[key: string]: any} {
+    return this.config;
   }
 }

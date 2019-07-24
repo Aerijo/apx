@@ -1,14 +1,15 @@
 import * as yargs from "yargs";
-yargs.wrap(Math.min(120, yargs.terminalWidth()));
+import {Arguments} from "yargs";
+yargs.wrap(Math.min(140, yargs.terminalWidth()));
 
 import {Context} from "./context";
 import {Install} from "./install";
+import {Uninstall} from "./uninstall";
 import {Publish} from "./publish";
 import {Doctor} from "./doctor";
 
 // Allow 'require' on ASAR archived files
 import "asar-require";
-import {Uninstall} from "./uninstall";
 
 function getArguments(context: Context) {
   return yargs
@@ -20,6 +21,12 @@ function getArguments(context: Context) {
     .option("help", {
       alias: "h",
       describe: "Print this usage message",
+    })
+    .option("target", {
+      describe: "The version of Atom to customise operations for",
+      alias: "t",
+      choices: ["stable", "beta", "nightly", "dev"],
+      default: context.getDefault("target") || "stable",
     })
     .command({
       command: "install [uri]",
@@ -82,6 +89,26 @@ function getArguments(context: Context) {
       handler(argv) {
         const doctor = new Doctor(context);
         return doctor.handler(argv);
+      },
+    })
+    .command({
+      command: "default <name> <value>",
+      describe: "Configure apx defaults",
+      builder() {
+        return yargs
+          .positional("name", {
+            describe: "The name of the default. Currently accepts `target`",
+            type: "string",
+            default: "",
+          })
+          .positional("value", {
+            describe: "The new value of the default",
+            type: "string",
+            default: "",
+          });
+      },
+      handler(argv) {
+        context.setDefault(argv.name as string, argv.value as string);
       },
     })
     .parse();

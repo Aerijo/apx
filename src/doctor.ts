@@ -12,6 +12,18 @@ export class Doctor {
     this.context = context;
   }
 
+  async doctorApx(): Promise<number> {
+    console.log("Resource path:", this.context.getResourceDirectory());
+    console.log("apx config path:", this.context.getConfigPath());
+    console.log("Atom directory:", this.context.getAtomDirectory());
+    console.log("Atom version:", this.context.getAtomVersion().version);
+    console.log("Electron version:", this.context.getElectronVersion().version);
+    console.log("Config:", this.context.getConfig());
+    console.log("Build environment extension:");
+    console.log(this.context.getElectronEnv(false));
+    return 0;
+  }
+
   doctorNpm(): Promise<number> {
     return new Promise(resolve => {
       const child = child_process.spawn("npm", ["doctor"], {env: this.context.getElectronEnv()});
@@ -76,6 +88,7 @@ export class Doctor {
   }
 
   async handler(_argv: Arguments): Promise<number> {
+    await this.doctorApx();
     await this.checkNativeBuild();
     await this.doctorNpm();
     await this.doctorAtom();
