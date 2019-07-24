@@ -1,5 +1,4 @@
 import * as yargs from "yargs";
-import {Arguments} from "yargs";
 yargs.wrap(Math.min(140, yargs.terminalWidth()));
 
 import {Context} from "./context";
