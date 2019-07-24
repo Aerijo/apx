@@ -11,7 +11,7 @@ export class Context {
   private reposDirectory: string | undefined;
   private atomVersion: SemVer | undefined;
   private electronVersion: SemVer | undefined;
-  private readonly config: {[key: string]: any};
+  private config: {[key: string]: any};
   private target: string | undefined;
 
   constructor() {
@@ -117,13 +117,21 @@ export class Context {
     throw new Error("Could not locate Atom resources path");
   }
 
+  setTarget (target: string | undefined) {
+    this.target = target;
+  }
+
   getResourceDirectory(target?: string): string {
-    if (!this.resourceDirectory || target !== this.target) {
-      if (!target && typeof this.config["target"] === "string") {
-        target = this.config["target"];
+    if (target) {
+      return this.calculateResourceDirectory(target);
+    }
+
+    if (!this.resourceDirectory) {
+      if (!this.target) {
+        const defaultTarget = this.config["target"];
+        this.target = typeof defaultTarget === "string" ? defaultTarget : "stable";
       }
-      this.resourceDirectory = this.calculateResourceDirectory(target || "stable");
-      this.target = target;
+      this.resourceDirectory = this.calculateResourceDirectory(this.target);
     }
     return this.resourceDirectory;
   }
@@ -225,6 +233,13 @@ export class Context {
 
   getDefault(name: string): string | undefined {
     return this.config[name];
+  }
+
+  unsetDefault(name: string) {
+    this.config[name] = undefined;
+    this.config = JSON.parse(JSON.stringify(this.config));
+    this.storeConfig();
+    console.log("New config:", this.config);
   }
 
   setDefault(name: string, value: string) {
