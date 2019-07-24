@@ -23,7 +23,8 @@ function getArguments(context: Context) {
       describe: "Print this usage message",
     })
     .option("target", {
-      describe: "The version of Atom to customise operations for. `dev` makes it use your local atom source repo",
+      describe:
+        "The version of Atom to customise operations for. `dev` makes it use your local atom source repo",
       alias: "t",
       choices: ["stable", "beta", "nightly", "dev"],
       default: context.getDefault("target") || "stable",
@@ -97,7 +98,8 @@ function getArguments(context: Context) {
       builder() {
         return yargs
           .positional("name", {
-            describe: "The name of the default. `unset` is special cased; if used, then <value> is unset. Otherwise, only `target` is currently recognised, with arguments matching the flag.",
+            describe:
+              "The name of the default. `unset` is special cased; if used, then <value> is unset. Otherwise, only `target` is currently recognised, with arguments matching the flag.",
             type: "string",
             default: "",
           })
@@ -116,11 +118,13 @@ function getArguments(context: Context) {
         }
       },
     })
-    .middleware([(argv) => {
-      if (argv.target) {
-        context.setTarget(argv.target as string);
-      }
-    }])
+    .middleware([
+      argv => {
+        if (argv.target) {
+          context.setTarget(argv.target as string);
+        }
+      },
+    ])
     .parse();
 }
 

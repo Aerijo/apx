@@ -117,7 +117,7 @@ export class Context {
     throw new Error("Could not locate Atom resources path");
   }
 
-  setTarget (target: string | undefined) {
+  setTarget(target: string | undefined) {
     this.target = target;
   }
 
