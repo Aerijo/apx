@@ -30,6 +30,7 @@
     "asar-require": "^0.3.0",
     "graphql-request": "^1.8.2",
     "keytar": "^4.11.0",
+    "listr": "^0.14.3",
     "request": "^2.88.0",
     "rimraf": "^2.6.3",
     "semver": "^6.2.0",
@@ -38,6 +39,7 @@
     "yargs": "^13.2.4"
   },
   "devDependencies": {
+    "@types/listr": "^0.14.1",
     "@types/node": "^12.6.1",
     "@types/request": "^2.48.2",
     "@types/rimraf": "^2.0.2",

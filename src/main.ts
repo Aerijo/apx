@@ -1,7 +1,7 @@
 import * as yargs from "yargs";
 yargs.wrap(Math.min(140, yargs.terminalWidth()));
 
-import {Context} from "./context";
+import {Context, getTargetFromString} from "./context";
 import {Install} from "./install";
 import {Uninstall} from "./uninstall";
 import {Publish} from "./publish";
@@ -9,6 +9,7 @@ import {Doctor} from "./doctor";
 
 // Allow 'require' on ASAR archived files
 import "asar-require";
+import {Arguments} from "yargs";
 
 function getArguments(context: Context) {
   return yargs
@@ -16,6 +17,7 @@ function getArguments(context: Context) {
     .option("version", {
       alias: "v",
       describe: "Print the apx version",
+      global: false,
     })
     .option("help", {
       alias: "h",
@@ -26,7 +28,28 @@ function getArguments(context: Context) {
         "The version of Atom to customise operations for. `dev` makes it use your local atom source repo",
       alias: "t",
       choices: ["stable", "beta", "nightly", "dev"],
-      default: context.getDefault("target") || "stable",
+      requiresArg: true,
+      global: false,
+    })
+    .option("stable", {
+      describe: "Equivalent to --target=stable",
+      type: "boolean",
+      global: false,
+    })
+    .option("beta", {
+      describe: "Equivalent to --target=beta",
+      type: "boolean",
+      global: false,
+    })
+    .option("nightly", {
+      describe: "Equivalent to --target=nightly",
+      type: "boolean",
+      global: false,
+    })
+    .option("dev", {
+      describe: "Equivalent to --target=dev",
+      type: "boolean",
+      global: false,
     })
     .command({
       command: "install [uri]",
@@ -118,13 +141,34 @@ function getArguments(context: Context) {
       },
     })
     .middleware([
-      argv => {
-        if (argv.target) {
-          context.setTarget(argv.target as string);
-        }
+      a => {
+        setTargetFromArgs(a, context);
       },
     ])
     .parse();
+}
+
+function setTargetFromArgs(argv: Arguments, context: Context) {
+  let targetCount = 0;
+  if (typeof argv.target === "string") {
+    targetCount += 1;
+    const target = getTargetFromString(argv.target);
+    if (target === undefined) {
+      throw new Error(`Unrecognised target ${argv.target}`);
+    }
+    context.setTarget(target);
+  }
+
+  for (const target of ["stable", "beta", "nightly", "dev"]) {
+    if (argv[target]) {
+      targetCount += 1;
+      context.setTarget(getTargetFromString(target)!);
+    }
+  }
+
+  if (targetCount > 1) {
+    throw new Error("Multiple target flags specified; try again with only one");
+  }
 }
 
 export function main(): number {

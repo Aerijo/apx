@@ -1,9 +1,16 @@
 import * as child_process from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import * as semver from "semver";
 import * as os from "os";
+import * as semver from "semver";
 import {SemVer} from "semver";
+
+export enum Target {
+  STABLE,
+  BETA,
+  NIGHTLY,
+  DEV,
+}
 
 export class Context {
   private atomDirectory: string | undefined;
@@ -12,10 +19,19 @@ export class Context {
   private atomVersion: SemVer | undefined;
   private electronVersion: SemVer | undefined;
   private config: {[key: string]: any};
-  private target: string | undefined;
+  private target: Target;
 
   constructor() {
+    this.target = Target.STABLE;
     this.config = this.loadConfig();
+  }
+
+  setTarget(target: Target) {
+    if (target === this.target) return;
+    this.target = target;
+    this.resourceDirectory = undefined;
+    this.atomVersion = undefined;
+    this.electronVersion = undefined;
   }
 
   getConfigPath(): string {
@@ -42,28 +58,19 @@ export class Context {
     return process.platform === "win32";
   }
 
-  getHomeDirectory(): string {
-    // NOTE: This method allows for env variable to be created in the future
-    return os.homedir();
-  }
-
   getAtomDirectory(): string {
     if (!this.atomDirectory) {
-      this.atomDirectory = process.env.ATOM_HOME || path.join(this.getHomeDirectory(), ".atom");
+      this.atomDirectory = process.env.ATOM_HOME || path.join(os.homedir(), ".atom");
     }
     return this.atomDirectory;
   }
 
-  calculateResourceDirectory(target: string): string {
+  calculateResourceDirectory(target: Target): string {
     if (process.env.ATOM_RESOURCE_PATH) {
       return process.env.ATOM_RESOURCE_PATH;
     }
 
-    if (target !== "stable" && target !== "beta" && target !== "nightly" && target !== "dev") {
-      throw new Error(`Invalid Atom target "${target}"`);
-    }
-
-    if (target === "dev") {
+    if (target === Target.DEV) {
       return path.join(this.getReposDirectory(), "atom");
     }
 
@@ -78,10 +85,9 @@ export class Context {
         .split("\n");
 
       const appName = new Map([
-        ["stable", "Atom.app"],
-        ["beta", "Atom Beta.app"],
-        ["nightly", "Atom Nightly.app"],
-        ["dev", "Atom Dev.app"],
+        [Target.STABLE, "Atom.app"],
+        [Target.BETA, "Atom Beta.app"],
+        [Target.NIGHTLY, "Atom Nightly.app"],
       ]).get(target);
 
       if (apps.length > 0) {
@@ -95,10 +101,9 @@ export class Context {
       appLocations.push(`/Applications/${appName}/Contents/Resources/app.asar`);
     } else if (process.platform === "linux") {
       const appName = new Map([
-        ["stable", "atom"],
-        ["beta", "atom-beta"],
-        ["nightly", "atom-nightly"],
-        ["dev", "atom-dev"],
+        [Target.STABLE, "atom"],
+        [Target.BETA, "atom-beta"],
+        [Target.NIGHTLY, "atom-nightly"],
       ]).get(target);
       appLocations.push(
         `/usr/local/share/${appName}/resources/app.asar`,
@@ -117,20 +122,12 @@ export class Context {
     throw new Error("Could not locate Atom resources path");
   }
 
-  setTarget(target: string | undefined) {
-    this.target = target;
-  }
-
-  getResourceDirectory(target?: string): string {
-    if (target) {
+  getResourceDirectory(target?: Target): string {
+    if (target !== undefined && target !== this.target) {
       return this.calculateResourceDirectory(target);
     }
 
     if (!this.resourceDirectory) {
-      if (!this.target) {
-        const defaultTarget = this.config["target"];
-        this.target = typeof defaultTarget === "string" ? defaultTarget : "stable";
-      }
       this.resourceDirectory = this.calculateResourceDirectory(this.target);
     }
     return this.resourceDirectory;
@@ -141,7 +138,7 @@ export class Context {
       this.reposDirectory =
         process.env.ATOM_REPOS_HOME !== undefined
           ? process.env.ATOM_REPOS_HOME
-          : path.join(this.getHomeDirectory(), "github");
+          : path.join(os.homedir(), "github");
     }
     return this.reposDirectory;
   }
@@ -251,4 +248,18 @@ export class Context {
   getConfig(): {[key: string]: any} {
     return this.config;
   }
+}
+
+export function getTargetFromString(input: string): Target | undefined {
+  switch (input) {
+    case "stable":
+      return Target.STABLE;
+    case "beta":
+      return Target.BETA;
+    case "nightly":
+      return Target.NIGHTLY;
+    case "dev":
+      return Target.DEV;
+  }
+  return undefined;
 }
