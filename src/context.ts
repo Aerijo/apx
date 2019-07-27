@@ -191,10 +191,7 @@ export class Context {
     if (path.extname(resourceDir) === ".asar") {
       metadata = JSON.parse(asar.extractFile(resourceDir, "package.json").toString());
     } else {
-      metadata = require(path.join(
-        this.getResourceDirectory(),
-        "package.json"
-      ));
+      metadata = require(path.join(this.getResourceDirectory(), "package.json"));
     }
 
     let {version: atomVersion, electronVersion} = metadata;
