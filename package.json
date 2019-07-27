@@ -28,6 +28,7 @@
   "dependencies": {
     "@octokit/rest": "^16.28.4",
     "asar-require": "^0.3.0",
+    "chalk": "^2.4.2",
     "graphql-request": "^1.8.2",
     "keytar": "^4.11.0",
     "log-update": "^3.2.0",

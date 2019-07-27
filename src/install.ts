@@ -9,7 +9,7 @@ import {Context} from "./context";
 import {get, getGithubGraphql} from "./request";
 import {getGithubOwnerRepo} from "./package";
 import {Command} from "./command";
-import {TaskManager} from "./tasks";
+import {TaskManager, Task} from "./tasks";
 
 export class Install extends Command {
   constructor(context: Context) {
@@ -77,12 +77,18 @@ export class Install extends Command {
     installDir.cleanup();
   }
 
-  installDependencies(_argv: Arguments): Promise<number> {
-    return new Promise(resolve => {
-      console.log("Installing dependencies");
+  installDependencies(_argv: Arguments, task: Task): Promise<void> {
+    task.final = true;
+    return new Promise((resolve, reject) => {
       const child = this.spawn("npm", ["install"], {stdio: "inherit"});
-      child.on("exit", (code, _signal) => {
-        resolve(code || 0);
+      child.on("exit", (code, status) => {
+        if (code === 0) {
+          task.title = "Installed dependencies";
+          resolve();
+        } else {
+          task.title = `Installing dependencies failed with code ${code} and status ${status}`;
+          reject();
+        }
       });
     });
   }
@@ -160,12 +166,8 @@ export class Install extends Command {
   }
 
   async handler(argv: Arguments) {
-    const {name: packageName, version} = this.getPackageNameAndVersion(argv.uri as string);
-
-    if (!packageName || packageName === ".") {
-      this.installDependencies(argv);
-      return;
-    }
+    let packageName: string;
+    let version: string | undefined;
 
     const self = this;
     let tarball = "";
@@ -173,18 +175,37 @@ export class Install extends Command {
 
     const tasks = new TaskManager([
       {
-        title: `Checking if ${packageName} is installed`,
+        title: "",
+        task() {
+          try {
+            const details = self.getPackageNameAndVersion(argv.uri as string);
+            packageName = details.name;
+            version = details.version;
+          } catch {
+            this.title = "Could not parse package name and version";
+            throw new Error();
+          }
+
+          if (!packageName || packageName === ".") {
+            this.title = "Installing dependencies";
+            return self.installDependencies(argv, this);
+          }
+        },
+      },
+      {
+        title: () => `Checking if ${packageName} is installed`,
         task() {
           return new Promise((resolve, reject) => {
             self.createAtomDirectories();
 
             fs.access(path.join(self.context.getAtomPackagesDirectory(), packageName), err => {
               if (!err || err.code !== "ENOENT") {
-                reject("Package already installed");
+                this.title = () => `Package ${packageName} already installed`;
+                reject();
                 return;
               }
 
-              this.title = `No other version of ${packageName} detected`;
+              this.title = () => `No other version of ${packageName} detected`;
               resolve();
             });
           });
@@ -211,7 +232,7 @@ export class Install extends Command {
         },
       },
       {
-        title: `Successfully installed ${packageName}`,
+        title: () => `Successfully installed ${packageName}`,
         task() {},
       },
     ]);

@@ -69,7 +69,7 @@ function getArguments(context: Context) {
       },
       handler(argv) {
         const install = new Install(context);
-        install.handler(argv);
+        return install.handler(argv);
       },
     })
     .command({
@@ -169,12 +169,7 @@ function setTargetFromArgs(argv: Arguments, context: Context) {
 
 export function main(): number {
   const context = new Context();
-  try {
-    getArguments(context);
-  } catch (e) {
-    console.log(e.message);
-    process.exit(1);
-  }
+  getArguments(context);
   return 0;
 }
 
