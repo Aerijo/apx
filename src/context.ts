@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import * as semver from "semver";
 import {SemVer} from "semver";
+import * as asar from "asar";
 
 export enum Target {
   STABLE,
@@ -184,10 +185,19 @@ export class Context {
   }
 
   calculateAtomElectronVersions() {
-    let {version: atomVersion, electronVersion} = require(path.join(
-      this.getResourceDirectory(),
-      "package.json"
-    ));
+    const resourceDir = this.getResourceDirectory();
+    let metadata;
+
+    if (path.extname(resourceDir) === ".asar") {
+      metadata = JSON.parse(asar.extractFile(resourceDir, "package.json").toString());
+    } else {
+      metadata = require(path.join(
+        this.getResourceDirectory(),
+        "package.json"
+      ));
+    }
+
+    let {version: atomVersion, electronVersion} = metadata;
 
     atomVersion = semver.parse(atomVersion);
     electronVersion = semver.parse(electronVersion);

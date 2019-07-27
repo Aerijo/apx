@@ -20,14 +20,14 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "exec": "npm run build && echo 'running apx...' && node .",
-    "prepublishOnly": "npm run lint && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
+    "prepublishOnly": "npm run lint && npm shrinkwrap && git add . && git push && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
     "lint": "prettier --check --ignore-path .gitignore **/*",
     "fix-lint": "prettier --check --write --ignore-path .gitignore **/*",
     "postversion": "git push --follow-tags"
   },
   "dependencies": {
-    "@octokit/rest": "^16.28.4",
-    "asar-require": "^0.3.0",
+    "@octokit/rest": "16.28.4",
+    "asar": "2.0.1",
     "chalk": "^2.4.2",
     "graphql-request": "^1.8.2",
     "keytar": "^4.11.0",

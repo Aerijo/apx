@@ -8,11 +8,12 @@ import {Publish} from "./publish";
 import {Doctor} from "./doctor";
 
 // Allow 'require' on ASAR archived files
-import "asar-require";
+// import "asar-require";
 import {Arguments} from "yargs";
 
 function getArguments(context: Context) {
   return yargs
+    .scriptName("apx")
     .demandCommand(1)
     .option("version", {
       alias: "v",
