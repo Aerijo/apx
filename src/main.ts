@@ -65,10 +65,6 @@ function getArguments(context: Context) {
             alias: "d",
             describe: "Install to the dev folder",
             type: "boolean",
-          })
-          .option("check", {
-            describe: "Check that native modules can be built",
-            type: "boolean",
           });
       },
       handler(argv) {
