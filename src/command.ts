@@ -1,16 +1,21 @@
 import * as fs from "fs";
 import * as path from "path";
-import { Context } from './context';
+import {Context} from "./context";
 import {spawn, ChildProcessWithoutNullStreams} from "child_process";
 
 export class Command {
   context: Context;
 
-  constructor (context: Context) {
+  constructor(context: Context) {
     this.context = context;
   }
 
-  spawn(command: string, args: string[], options: {[key: string]: any} = {}, logOptions?: {[key: string]: any}): ChildProcessWithoutNullStreams {
+  spawn(
+    command: string,
+    args: string[],
+    options: {[key: string]: any} = {},
+    logOptions?: {[key: string]: any}
+  ): ChildProcessWithoutNullStreams {
     const child = spawn(command, args, {...options, env: {...process.env, ...options.env}});
 
     if (logOptions) {
@@ -24,16 +29,25 @@ export class Command {
         if (typeof logOptions.logfile === "string") {
           outstream = fs.createWriteStream(logOptions.logfile, {flags: "a"});
           errstream = outstream;
-          child.on("exit", () => {outstream.write("\n"); outstream.end()});
+          child.on("exit", () => {
+            outstream.write("\n");
+            outstream.end();
+          });
 
-          outstream.write(`$$$ ${(new Date()).toString()} LOG BEGIN`);
+          outstream.write(`$$$ ${new Date().toString()} LOG BEGIN`);
         } else if (typeof logOptions.logfile === "object") {
           outstream = fs.createWriteStream(logOptions.logfile.out, {flags: "a"});
           errstream = fs.createWriteStream(logOptions.logfile.err, {flags: "a"});
-          child.on("exit", () => {outstream.write("\n"); outstream.end()});
-          child.on("exit", () => {outstream.write("\n"); errstream.end()});
-          outstream.write(`$$$ ${(new Date()).toString()} LOG BEGIN`);
-          errstream.write(`$$$ ${(new Date()).toString()} LOG BEGIN`);
+          child.on("exit", () => {
+            outstream.write("\n");
+            outstream.end();
+          });
+          child.on("exit", () => {
+            outstream.write("\n");
+            errstream.end();
+          });
+          outstream.write(`$$$ ${new Date().toString()} LOG BEGIN`);
+          errstream.write(`$$$ ${new Date().toString()} LOG BEGIN`);
         }
       }
 

@@ -8,7 +8,7 @@ tmp.setGracefulCleanup();
 import {Context} from "./context";
 import {get, getGithubGraphql} from "./request";
 import {getGithubOwnerRepo} from "./package";
-import { Command } from './command';
+import {Command} from "./command";
 
 export class Install extends Command {
   constructor(context: Context) {
@@ -23,12 +23,20 @@ export class Install extends Command {
 
   getInstallPromise(tarballUrl: string, dir: string, packageName?: string): Promise<number> {
     return new Promise((resolve, reject) => {
-      const child = this.spawn("npm", ["install", "--global-style", tarballUrl], {
-        cwd: dir,
-        log: true,
-      }, {
-        logfile: path.join(this.getOrCreateLogPath(), `apx-install${packageName ? "-" + packageName : ""}.txt`),
-      });
+      const child = this.spawn(
+        "npm",
+        ["install", "--global-style", tarballUrl],
+        {
+          cwd: dir,
+          log: true,
+        },
+        {
+          logfile: path.join(
+            this.getOrCreateLogPath(),
+            `apx-install${packageName ? "-" + packageName : ""}.txt`
+          ),
+        }
+      );
 
       child.on("exit", (code, status) => {
         reject({code, status});
