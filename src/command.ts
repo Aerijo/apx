@@ -19,9 +19,6 @@ export class Command {
     const child = spawn(command, args, {...options, env: {...process.env, ...options.env}});
 
     if (logOptions) {
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
-
       let outstream: fs.WriteStream;
       let errstream: fs.WriteStream;
 
@@ -51,25 +48,30 @@ export class Command {
         }
       }
 
-      child.stdout.on("data", data => {
-        if (logOptions.consoleout) {
-          process.stdout.write(data);
-        }
+      if (options && options.stdio === "pipe") {
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+        child.stdout.on("data", data => {
+          if (logOptions.consoleout) {
+            process.stdout.write(data);
+          }
 
-        if (outstream) {
-          outstream.write(data);
-        }
-      });
+          if (outstream) {
+            outstream.write(data);
+          }
+        });
 
-      child.stderr.on("data", data => {
-        if (logOptions.consoleout) {
-          process.stdout.write(data);
-        }
+        child.stderr.on("data", data => {
+          if (logOptions.consoleout) {
+            process.stdout.write(data);
+          }
 
-        if (errstream) {
-          errstream.write(data);
-        }
-      });
+          if (errstream) {
+            errstream.write(data);
+          }
+        });
+      }
+
     }
     return child;
   }

@@ -22,8 +22,8 @@ export class Context {
   private target: Target;
 
   constructor() {
-    this.target = Target.STABLE;
     this.config = this.loadConfig();
+    this.target = (typeof this.config.target === "string" && getTargetFromString(this.config.target)) || Target.STABLE;
   }
 
   setTarget(target: Target) {
@@ -38,7 +38,7 @@ export class Context {
     return process.env.APX_CONFIG_PATH || path.join(this.getAtomDirectory(), ".apxrc");
   }
 
-  loadConfig(): Object {
+  loadConfig(): {[key: string]: any} {
     const configPath = this.getConfigPath();
     try {
       return JSON.parse(fs.readFileSync(configPath, {encoding: "utf8"}));
@@ -54,15 +54,21 @@ export class Context {
     return;
   }
 
-  isWindows(): boolean {
-    return process.platform === "win32";
-  }
-
   getAtomDirectory(): string {
     if (!this.atomDirectory) {
       this.atomDirectory = process.env.ATOM_HOME || path.join(os.homedir(), ".atom");
     }
     return this.atomDirectory;
+  }
+
+  appNameForTarget(target: Target): string {
+    const isMac = process.platform === "darwin";
+    switch (target) {
+      case Target.STABLE: return isMac ? "Atom.app" : "atom";
+      case Target.BETA: return isMac ? "Atom Beta.app" : "atom-beta";
+      case Target.NIGHTLY: return isMac ? "Atom Nightly.app" : "atom-nightly";
+      default: return "atom";
+    }
   }
 
   calculateResourceDirectory(target: Target): string {
@@ -74,21 +80,21 @@ export class Context {
       return path.join(this.getReposDirectory(), "atom");
     }
 
-    // TODO: Support Windows
-    const appLocations: string[] = [];
-    if (process.platform === "darwin") {
+    let appLocations: string[] = [];
+    const appName = this.appNameForTarget(target);
+
+    if (process.platform === "win32") {
+      const baseDir = `${os.homedir()}\\AppData\\Local\\${appName}`;
+      try {
+        appLocations = fs.readdirSync(baseDir).filter(f => f.startsWith("app")).map(f => `${baseDir}\\${f}\\resources\\app.asar`);
+      } catch {}
+    } else if (process.platform === "darwin") {
       const apps = child_process
         .execSync("mdfind \"kMDItemCFBundleIdentifier == 'com.github.atom'\"", {
           encoding: "utf8",
           timeout: 1000,
         })
         .split("\n");
-
-      const appName = new Map([
-        [Target.STABLE, "Atom.app"],
-        [Target.BETA, "Atom Beta.app"],
-        [Target.NIGHTLY, "Atom Nightly.app"],
-      ]).get(target);
 
       if (apps.length > 0) {
         for (const dir of apps) {
@@ -100,11 +106,6 @@ export class Context {
       }
       appLocations.push(`/Applications/${appName}/Contents/Resources/app.asar`);
     } else if (process.platform === "linux") {
-      const appName = new Map([
-        [Target.STABLE, "atom"],
-        [Target.BETA, "atom-beta"],
-        [Target.NIGHTLY, "atom-nightly"],
-      ]).get(target);
       appLocations.push(
         `/usr/local/share/${appName}/resources/app.asar`,
         `/usr/share/${appName}/resources/app.asar`

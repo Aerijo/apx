@@ -30,7 +30,7 @@
     "no-shadowed-variable": true,
     "no-sparse-arrays": true,
     "no-string-throw": true,
-    "no-this-assignment": true,
+    "no-this-assignment": false,
     "no-unbound-method": true,
     "no-unsafe-finally": true,
     "no-var-keyword": true,
@@ -42,7 +42,7 @@
     "static-this": true,
     "use-isnan": true,
     "deprecation": true,
-    "no-require-imports": false,
+    "no-require-imports": true,
     "prefer-const": true,
     "prefer-readonly": true,
     "array-type": {

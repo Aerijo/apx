@@ -1,14 +1,15 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as child_process from "child_process";
 import {Arguments} from "yargs";
 import * as semver from "semver";
-import * as tmp from "tmp";
-tmp.setGracefulCleanup();
+import * as tmpp from "tmp-promise";
+tmpp.setGracefulCleanup();
+import {promisify} from "util";
 import {Context} from "./context";
 import {get, getGithubGraphql} from "./request";
 import {getGithubOwnerRepo} from "./package";
 import {Command} from "./command";
+import { TaskManager } from './tasks';
 
 export class Install extends Command {
   constructor(context: Context) {
@@ -21,80 +22,69 @@ export class Install extends Command {
     this.tryMakeDir(this.context.getAtomNodeDirectory());
   }
 
-  getInstallPromise(tarballUrl: string, dir: string, packageName?: string): Promise<number> {
+  getInstallPromise(tarballUrl: string, dir: string): Promise<number> {
     return new Promise((resolve, reject) => {
       const child = this.spawn(
         "npm",
-        ["install", "--global-style", tarballUrl],
+        ["install", "--global-style", "--loglevel=error", tarballUrl],
         {
           cwd: dir,
-          log: true,
-        },
-        {
-          logfile: path.join(
-            this.getOrCreateLogPath(),
-            `apx-install${packageName ? "-" + packageName : ""}.txt`
-          ),
+          stdio: "inherit",
         }
       );
 
       child.on("exit", (code, status) => {
         reject({code, status});
-        // if (code !== 0) {
-        //   reject({code, status});
-        // } else {
-        //   resolve(code);
-        // }
+        if (code !== 0) {
+          reject({code, status});
+        } else {
+          resolve(code);
+        }
       });
     });
   }
 
-  async installFromUrl(tarballUrl: string, packageName?: string): Promise<void> {
-    const installDir = tmp.dirSync({prefix: "apx-install-", unsafeCleanup: true});
-    const modulesDir = path.join(installDir.name, "node_modules");
-    fs.mkdirSync(modulesDir);
+  async downloadFromUrl(tarball: string): Promise<tmpp.DirectoryResult> {
+    const installDir = await tmpp.dir({prefix: "apx-install-", unsafeCleanup: true});
+    await new Promise((resolve, reject) => {
+      const child = this.spawn(
+        "npm",
+        ["install", "--global-style", "--loglevel=error", tarball],
+        {
+          cwd: installDir.path,
+          stdio: "inherit",
+        }
+      );
 
-    try {
-      await this.getInstallPromise(tarballUrl, installDir.name, packageName);
-    } catch (e) {
-      console.log(`Install failed with`, e);
-      return;
+      child.on("exit", (code, status) => {
+        // reject(`Install failed with code ${code} and status ${status}`);
+        if (code !== 0) {
+          reject(`Install failed with code ${code} and status ${status}`);
+        } else {
+          resolve();
+        }
+      });
+    });
+    return installDir;
+  }
+
+  async movePackageAndCleanup(installDir: tmpp.DirectoryResult): Promise<void> {
+    const modulesDir = path.join(installDir.path, "node_modules");
+    const contents = (await promisify(fs.readdir)(modulesDir)).filter(n => n !== ".bin");
+    if (contents.length !== 1) {
+      throw new Error(`Expected only one directory in ${modulesDir}`);
     }
-
-    const packDir = fs.readdirSync(modulesDir).filter(n => n !== ".bin");
-    if (packDir.length !== 1) {
-      throw new Error(`Expected only one directory in ${packDir}`);
-    }
-
-    const packName = packDir[0];
-    const source = path.join(modulesDir, packName);
-    const dest = path.join(this.context.getAtomPackagesDirectory(), packName);
-
-    try {
-      fs.renameSync(source, dest);
-    } catch (e) {
-      throw e;
-    }
-    console.log("Finished install");
-    installDir.removeCallback();
-
-    return;
+    const name = contents[0];
+    const source = path.join(modulesDir, name);
+    const dest = path.join(this.context.getAtomPackagesDirectory(), name);
+    await promisify(fs.rename)(source, dest);
+    installDir.cleanup();
   }
 
   installDependencies(_argv: Arguments): Promise<number> {
     return new Promise(resolve => {
       console.log("Installing dependencies");
-      const child = child_process.spawn("npm", ["install"], {env: this.context.getElectronEnv()});
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
-
-      child.stdout.on("data", data => {
-        console.log(data);
-      });
-      child.stderr.on("data", data => {
-        console.error(data);
-      });
-
+      const child = this.spawn("npm", ["install"], {stdio: "inherit"});
       child.on("exit", (code, _signal) => {
         resolve(code || 0);
       });
@@ -154,43 +144,83 @@ export class Install extends Command {
 
     const githubTarball = await this.getGithubRelease(owner, repo, "apx-test", version);
 
-    if (githubTarball) {
-      console.log(githubTarball);
-      return githubTarball;
+    return githubTarball || release.dist.tarball;
+  }
+
+  getPackageNameAndVersion(uri: string): {name: string; version: string | undefined} {
+    const versionIndex = uri.indexOf("@");
+    if (versionIndex < 0) {
+      return {name: uri, version: undefined};
     }
 
-    return release.dist.tarball;
+    const version = uri.slice(versionIndex + 1);
+    const name = uri.slice(0, versionIndex);
+
+    if (!semver.valid(version)) {
+      throw new Error("Invalid version specifier");
+    }
+
+    return {name, version};
   }
 
   async handler(argv: Arguments) {
-    let packageName = argv.uri as string;
-    let version;
+    const {name: packageName, version} = this.getPackageNameAndVersion(argv.uri as string);
 
     if (!packageName || packageName === ".") {
       this.installDependencies(argv);
       return;
     }
 
-    if (fs.existsSync(path.join(this.context.getAtomPackagesDirectory(), packageName))) {
-      throw new Error("Package already installed"); // TODO: Allow overwrite new version
-    }
+    const self = this;
+    let tarball = "";
+    let downloadTemp: tmpp.DirectoryResult;
 
-    const versionIndex = packageName.indexOf("@");
-    if (versionIndex > 0) {
-      version = packageName.slice(versionIndex + 1);
-      packageName = packageName.slice(0, versionIndex);
+    const tasks = new TaskManager([
+      {
+        title: `Checking if ${packageName} is installed`,
+        task () {
+          return new Promise((resolve, reject) => {
+            self.createAtomDirectories();
 
-      if (!semver.valid(version)) {
-        throw new Error("Invalid version specifier");
+            fs.access(path.join(self.context.getAtomPackagesDirectory(), packageName), (err) => {
+              if (!err || err.code !== "ENOENT") {
+                reject("Package already installed");
+                return;
+              }
+
+              this.title = `No other version of ${packageName} detected`;
+              resolve();
+            });
+          });
+        }
+      },
+      {
+        title: `Getting package URL`,
+        async task () {
+          tarball = await self.getPackageTarball(packageName, version);
+          this.title = `Got package URL - ${tarball}`;
+        }
+      },
+      {
+        title: () => `Installing ${packageName} for Atom ${self.context.getAtomVersion.call(self.context)}`,
+        async task () {
+          downloadTemp = await self.downloadFromUrl(tarball);
+        }
+      },
+      {
+        title: `Moving download to packages folder`,
+        async task () {
+          await self.movePackageAndCleanup(downloadTemp);
+        }
+      },
+      {
+        title: `Successfully installed ${packageName}`,
+        task () {}
       }
-    }
+    ]);
 
-    this.createAtomDirectories();
-
-    const tarball = await this.getPackageTarball(packageName, version);
-
-    console.log("Installing", tarball);
-
-    this.installFromUrl(tarball, packageName);
+    try {
+      await tasks.run();
+    } catch {}
   }
 }

@@ -1,15 +1,13 @@
-import * as child_process from "child_process";
 import {Context} from "./context";
 import {Arguments} from "yargs";
 import * as fs from "fs";
 import * as rimraf from "rimraf";
 import * as path from "path";
+import {Command} from "./command";
 
-export class Doctor {
-  context: Context;
-
+export class Doctor extends Command {
   constructor(context: Context) {
-    this.context = context;
+    super(context);
   }
 
   async doctorApx(): Promise<number> {
@@ -26,16 +24,7 @@ export class Doctor {
 
   doctorNpm(): Promise<number> {
     return new Promise(resolve => {
-      const child = child_process.spawn("npm", ["doctor"], {env: this.context.getElectronEnv()});
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
-
-      child.stdout.on("data", data => {
-        console.log(data);
-      });
-      child.stderr.on("data", data => {
-        console.error(data);
-      });
+      const child = this.spawn("npm", ["doctor", "--loglevel=warn"], {stdio: "inherit"});
 
       child.on("exit", (code, _signal) => {
         resolve(code || 0);
@@ -57,14 +46,11 @@ export class Doctor {
         }
       }
 
-      const child = child_process.spawn("npm", ["build", "."], {
+      const child = this.spawn("npm", ["build", "."], {
         cwd: nativeModulePath,
-        env: this.context.getElectronEnv(),
       });
 
       let out = "";
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
       child.stdout.on("data", d => (out += d));
       child.stderr.on("data", d => (out += d));
 
