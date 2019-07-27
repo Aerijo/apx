@@ -16,6 +16,9 @@ export class Command {
     options: {[key: string]: any} = {},
     logOptions?: {[key: string]: any}
   ): ChildProcessWithoutNullStreams {
+    if (process.platform === "win32") {
+      options.shell = true;
+    }
     const child = spawn(command, args, {...options, env: {...process.env, ...options.env}});
 
     if (logOptions) {
