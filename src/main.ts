@@ -17,7 +17,6 @@ function getArguments(context: Context) {
     .option("version", {
       alias: "v",
       describe: "Print the apx version",
-      global: false,
     })
     .option("help", {
       alias: "h",
@@ -29,27 +28,27 @@ function getArguments(context: Context) {
       alias: "t",
       choices: ["stable", "beta", "nightly", "dev"],
       requiresArg: true,
-      global: false,
+      group: "Target:",
     })
     .option("stable", {
       describe: "Equivalent to --target=stable",
       type: "boolean",
-      global: false,
+      group: "Target:",
     })
     .option("beta", {
       describe: "Equivalent to --target=beta",
       type: "boolean",
-      global: false,
+      group: "Target:",
     })
     .option("nightly", {
       describe: "Equivalent to --target=nightly",
       type: "boolean",
-      global: false,
+      group: "Target:",
     })
-    .option("dev", {
+    .option("tdev", {
       describe: "Equivalent to --target=dev",
       type: "boolean",
-      global: false,
+      group: "Target:",
     })
     .command({
       command: "install [uri]",
@@ -57,7 +56,8 @@ function getArguments(context: Context) {
       builder() {
         return yargs
           .positional("uri", {
-            describe: "An identifier of the package to install",
+            describe:
+              "An identifier of the package to install. Use `.` or omit to install dependencies for the current package",
             type: "string",
             default: ".",
           })
@@ -173,7 +173,12 @@ function setTargetFromArgs(argv: Arguments, context: Context) {
 
 export function main(): number {
   const context = new Context();
-  getArguments(context);
+  try {
+    getArguments(context);
+  } catch (e) {
+    console.log(e.message);
+    process.exit(1);
+  }
   return 0;
 }
 
