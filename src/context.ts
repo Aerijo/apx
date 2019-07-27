@@ -23,7 +23,9 @@ export class Context {
 
   constructor() {
     this.config = this.loadConfig();
-    this.target = (typeof this.config.target === "string" && getTargetFromString(this.config.target)) || Target.STABLE;
+    this.target =
+      (typeof this.config.target === "string" && getTargetFromString(this.config.target)) ||
+      Target.STABLE;
   }
 
   setTarget(target: Target) {
@@ -64,10 +66,14 @@ export class Context {
   appNameForTarget(target: Target): string {
     const isMac = process.platform === "darwin";
     switch (target) {
-      case Target.STABLE: return isMac ? "Atom.app" : "atom";
-      case Target.BETA: return isMac ? "Atom Beta.app" : "atom-beta";
-      case Target.NIGHTLY: return isMac ? "Atom Nightly.app" : "atom-nightly";
-      default: return "atom";
+      case Target.STABLE:
+        return isMac ? "Atom.app" : "atom";
+      case Target.BETA:
+        return isMac ? "Atom Beta.app" : "atom-beta";
+      case Target.NIGHTLY:
+        return isMac ? "Atom Nightly.app" : "atom-nightly";
+      default:
+        return "atom";
     }
   }
 
@@ -86,7 +92,10 @@ export class Context {
     if (process.platform === "win32") {
       const baseDir = `${os.homedir()}\\AppData\\Local\\${appName}`;
       try {
-        appLocations = fs.readdirSync(baseDir).filter(f => f.startsWith("app")).map(f => `${baseDir}\\${f}\\resources\\app.asar`);
+        appLocations = fs
+          .readdirSync(baseDir)
+          .filter(f => f.startsWith("app"))
+          .map(f => `${baseDir}\\${f}\\resources\\app.asar`);
       } catch {}
     } else if (process.platform === "darwin") {
       const apps = child_process

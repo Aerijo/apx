@@ -71,7 +71,6 @@ export class Command {
           }
         });
       }
-
     }
     return child;
   }

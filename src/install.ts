@@ -9,7 +9,7 @@ import {Context} from "./context";
 import {get, getGithubGraphql} from "./request";
 import {getGithubOwnerRepo} from "./package";
 import {Command} from "./command";
-import { TaskManager } from './tasks';
+import {TaskManager} from "./tasks";
 
 export class Install extends Command {
   constructor(context: Context) {
@@ -47,14 +47,10 @@ export class Install extends Command {
   async downloadFromUrl(tarball: string): Promise<tmpp.DirectoryResult> {
     const installDir = await tmpp.dir({prefix: "apx-install-", unsafeCleanup: true});
     await new Promise((resolve, reject) => {
-      const child = this.spawn(
-        "npm",
-        ["install", "--global-style", "--loglevel=error", tarball],
-        {
-          cwd: installDir.path,
-          stdio: "inherit",
-        }
-      );
+      const child = this.spawn("npm", ["install", "--global-style", "--loglevel=error", tarball], {
+        cwd: installDir.path,
+        stdio: "inherit",
+      });
 
       child.on("exit", (code, status) => {
         // reject(`Install failed with code ${code} and status ${status}`);
@@ -178,11 +174,11 @@ export class Install extends Command {
     const tasks = new TaskManager([
       {
         title: `Checking if ${packageName} is installed`,
-        task () {
+        task() {
           return new Promise((resolve, reject) => {
             self.createAtomDirectories();
 
-            fs.access(path.join(self.context.getAtomPackagesDirectory(), packageName), (err) => {
+            fs.access(path.join(self.context.getAtomPackagesDirectory(), packageName), err => {
               if (!err || err.code !== "ENOENT") {
                 reject("Package already installed");
                 return;
@@ -192,31 +188,32 @@ export class Install extends Command {
               resolve();
             });
           });
-        }
+        },
       },
       {
         title: `Getting package URL`,
-        async task () {
+        async task() {
           tarball = await self.getPackageTarball(packageName, version);
           this.title = `Got package URL - ${tarball}`;
-        }
+        },
       },
       {
-        title: () => `Installing ${packageName} for Atom ${self.context.getAtomVersion.call(self.context)}`,
-        async task () {
+        title: () =>
+          `Installing ${packageName} for Atom ${self.context.getAtomVersion.call(self.context)}`,
+        async task() {
           downloadTemp = await self.downloadFromUrl(tarball);
-        }
+        },
       },
       {
         title: `Moving download to packages folder`,
-        async task () {
+        async task() {
           await self.movePackageAndCleanup(downloadTemp);
-        }
+        },
       },
       {
         title: `Successfully installed ${packageName}`,
-        task () {}
-      }
+        task() {},
+      },
     ]);
 
     try {

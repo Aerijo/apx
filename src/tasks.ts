@@ -8,10 +8,8 @@ interface Task {
   task(): void | Promise<void> | Observable<string>;
 }
 
-function getTaskTitle (task: Task): string {
-  return typeof task.title === "string"
-    ? task.title
-    : task.title();
+function getTaskTitle(task: Task): string {
+  return typeof task.title === "string" ? task.title : task.title();
 }
 
 export class TaskManager {
@@ -44,18 +42,17 @@ export class TaskManager {
         }
 
         spawned.subscribe({
-          next (val) {
+          next(val) {
             logUpdate(`> ${getTaskTitle(task)} - ${val}`);
           },
-          error (exception) {
+          error(exception) {
             throw exception;
           },
           complete() {
             logUpdate(`✔ ${getTaskTitle(task)}`);
             logUpdate.done();
-          }
+          },
         });
-
       } catch (e) {
         logUpdate(`✘ ${getTaskTitle(task)} - ${e}`);
         throw new Error("aborting");
