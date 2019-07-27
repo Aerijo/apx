@@ -1,48 +1,56 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as child_process from "child_process";
-
 import {Arguments} from "yargs";
 import * as semver from "semver";
 import * as tmp from "tmp";
 tmp.setGracefulCleanup();
-
 import {Context} from "./context";
 import {get, getGithubGraphql} from "./request";
 import {getGithubOwnerRepo} from "./package";
+import { Command } from './command';
 
-export class Install {
-  context: Context;
-
+export class Install extends Command {
   constructor(context: Context) {
-    this.context = context;
+    super(context);
   }
 
   createAtomDirectories() {
-    tryMakeDir(this.context.getAtomDirectory());
-    tryMakeDir(this.context.getAtomPackagesDirectory());
-    tryMakeDir(this.context.getAtomNodeDirectory());
+    this.tryMakeDir(this.context.getAtomDirectory());
+    this.tryMakeDir(this.context.getAtomPackagesDirectory());
+    this.tryMakeDir(this.context.getAtomNodeDirectory());
   }
 
-  installFromUrl(tarballUrl: string) {
+  getInstallPromise(tarballUrl: string, dir: string, packageName?: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const child = this.spawn("npm", ["install", "--global-style", tarballUrl], {
+        cwd: dir,
+        log: true,
+      }, {
+        logfile: path.join(this.getOrCreateLogPath(), `apx-install${packageName ? "-" + packageName : ""}.txt`),
+      });
+
+      child.on("exit", (code, status) => {
+        reject({code, status});
+        // if (code !== 0) {
+        //   reject({code, status});
+        // } else {
+        //   resolve(code);
+        // }
+      });
+    });
+  }
+
+  async installFromUrl(tarballUrl: string, packageName?: string): Promise<void> {
     const installDir = tmp.dirSync({prefix: "apx-install-", unsafeCleanup: true});
     const modulesDir = path.join(installDir.name, "node_modules");
     fs.mkdirSync(modulesDir);
 
-    const result = child_process.spawnSync("npm", ["install", "--global-style", tarballUrl], {
-      cwd: installDir.name,
-      env: this.context.getElectronEnv(),
-      encoding: "utf8",
-    });
-
-    console.log(result.stdout);
-
-    if (result.error) {
-      throw result.error;
-    }
-
-    if (result.status !== 0) {
-      throw new Error(`npm install exited with non-zero status ${result.status}`);
+    try {
+      await this.getInstallPromise(tarballUrl, installDir.name, packageName);
+    } catch (e) {
+      console.log(`Install failed with`, e);
+      return;
     }
 
     const packDir = fs.readdirSync(modulesDir).filter(n => n !== ".bin");
@@ -61,6 +69,8 @@ export class Install {
     }
     console.log("Finished install");
     installDir.removeCallback();
+
+    return;
   }
 
   installDependencies(_argv: Arguments): Promise<number> {
@@ -102,8 +112,8 @@ export class Install {
       }
     }`;
 
-    const data = await getGithubGraphql(query);
     try {
+      const data = await getGithubGraphql(query);
       const assets = data.repository.release.releaseAssets.nodes;
       return assets.length === 1 ? assets[0].downloadUrl : undefined;
     } catch (e) {
@@ -153,6 +163,10 @@ export class Install {
       return;
     }
 
+    if (fs.existsSync(path.join(this.context.getAtomPackagesDirectory(), packageName))) {
+      throw new Error("Package already installed"); // TODO: Allow overwrite new version
+    }
+
     const versionIndex = packageName.indexOf("@");
     if (versionIndex > 0) {
       version = packageName.slice(versionIndex + 1);
@@ -169,17 +183,6 @@ export class Install {
 
     console.log("Installing", tarball);
 
-    this.installFromUrl(tarball);
-  }
-}
-
-function tryMakeDir(dir: string) {
-  try {
-    fs.mkdirSync(dir, {recursive: true});
-  } catch (e) {
-    if (e.code !== "EEXIST") {
-      console.error(`Could not create required directory ${dir}`);
-      throw e;
-    }
+    this.installFromUrl(tarball, packageName);
   }
 }
