@@ -97,7 +97,11 @@ export class Context {
     }
 
     if (target === Target.DEV) {
-      return path.join(this.getReposDirectory(), "atom");
+      const location = path.join(this.getReposDirectory(), "atom");
+      if (fs.existsSync(location)) {
+        return location;
+      }
+      throw new Error("Could not find Atom dev repo");
     }
 
     let appLocations: string[] = [];

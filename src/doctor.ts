@@ -28,9 +28,13 @@ export class Doctor extends Command {
       ["apx config path", this.context.getConfigPath()],
     ]);
 
-    const detectedAtoms = [Target.STABLE, Target.BETA, Target.NIGHTLY, Target.DEV]
-      .filter(t => this.getResourceDirForTarget(t))
-      .map(displayNameForTarget);
+    const targets = [Target.STABLE, Target.BETA, Target.NIGHTLY, Target.DEV];
+    const detectedAtoms = [];
+    for (const target of targets) {
+      if (await this.getResourceDirForTarget(target)) {
+        detectedAtoms.push(displayNameForTarget(target));
+      }
+    }
     properties.set("Detected apps", detectedAtoms.join(", "));
 
     return properties;
