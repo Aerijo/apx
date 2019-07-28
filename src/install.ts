@@ -2,8 +2,8 @@ import * as fs from "fs";
 import * as path from "path";
 import {Arguments} from "yargs";
 import * as semver from "semver";
-import * as tmpp from "tmp-promise";
-tmpp.setGracefulCleanup();
+import * as tmp from "tmp-promise";
+tmp.setGracefulCleanup();
 import {promisify} from "util";
 import {Context} from "./context";
 import {get, getGithubGraphql} from "./request";
@@ -44,8 +44,8 @@ export class Install extends Command {
     });
   }
 
-  async downloadFromUrl(tarball: string): Promise<tmpp.DirectoryResult> {
-    const installDir = await tmpp.dir({prefix: "apx-install-", unsafeCleanup: true});
+  async downloadFromUrl(tarball: string): Promise<tmp.DirectoryResult> {
+    const installDir = await tmp.dir({prefix: "apx-install-", unsafeCleanup: true});
     await new Promise((resolve, reject) => {
       const child = this.spawn("npm", ["install", "--global-style", "--loglevel=error", tarball], {
         cwd: installDir.path,
@@ -64,7 +64,7 @@ export class Install extends Command {
     return installDir;
   }
 
-  async movePackageAndCleanup(installDir: tmpp.DirectoryResult): Promise<void> {
+  async movePackageAndCleanup(installDir: tmp.DirectoryResult): Promise<void> {
     const modulesDir = path.join(installDir.path, "node_modules");
     const contents = (await promisify(fs.readdir)(modulesDir)).filter(n => n !== ".bin");
     if (contents.length !== 1) {
@@ -171,7 +171,7 @@ export class Install extends Command {
 
     const self = this;
     let tarball = "";
-    let downloadTemp: tmpp.DirectoryResult;
+    let downloadTemp: tmp.DirectoryResult;
 
     const tasks = new TaskManager([
       {

@@ -5,12 +5,13 @@ import * as path from "path";
 import {getMetadata} from "./package";
 import * as rimraf from "rimraf";
 import * as child_process from "child_process";
+import {Command} from "./command";
+import {TaskManager} from "./tasks";
+import {promisify} from "util";
 
-export class Uninstall {
-  context: Context;
-
+export class Uninstall extends Command {
   constructor(context: Context) {
-    this.context = context;
+    super(context);
   }
 
   runScript(name: string, scripts: any, cwd: string): Promise<void> {
@@ -28,27 +29,59 @@ export class Uninstall {
 
   async handler(argv: Arguments) {
     const packageName = argv.package as string;
-    console.log(`uninstalling ${packageName}`);
+    const self = this;
 
-    const packagesDir = this.context.getAtomPackagesDirectory();
+    let runUninstallScript = false;
+    let scripts: any;
+    let packageDir: string;
 
-    const packageNames = fs.readdirSync(packagesDir);
+    const tasks = new TaskManager([
+      {
+        title: () => `Uninstalling ${packageName}`,
+        async task() {
+          const packagesDir = self.context.getAtomPackagesDirectory();
+          const packageNames = await promisify(fs.readdir)(packagesDir);
 
-    if (packageNames.indexOf(packageName) < 0) {
-      throw new Error(`Package ${packageName} not installed`);
-    }
+          if (packageNames.indexOf(packageName) < 0) {
+            this.title = `Package ${packageName} not installed`;
+            throw new Error();
+          }
 
-    const packageDir = path.join(packagesDir, packageName);
-    const metadata = await getMetadata(packageDir);
+          packageDir = path.join(packagesDir, packageName);
+          const metadata = await getMetadata(packageDir);
+          scripts = metadata.scripts;
+          if (typeof scripts === "object" && hasUninstallScript(scripts)) {
+            runUninstallScript = true;
+          }
+        },
+      },
+      {
+        title: "Running uninstall scripts",
+        skip() {
+          if (!runUninstallScript) {
+            this.title = "No uninstall scripts - skipping";
+          }
+          return !runUninstallScript;
+        },
+        async task() {
+          await self.runScript("uninstall", scripts, packageDir); // also runs pre & post
+        },
+      },
+      {
+        title: () => `Deleting ${packageDir}`,
+        task() {
+          rimraf.sync(packageDir);
+        },
+      },
+    ]);
 
-    const scripts = metadata.scripts;
-    if (typeof scripts === "object") {
-      await this.runScript("uninstall", scripts, packageDir); // also runs pre & post
-    }
-
-    console.log("removing", packageDir);
-    rimraf.sync(packageDir);
-
-    return 0;
+    tasks.run();
   }
+}
+
+function hasUninstallScript(scripts: any): boolean {
+  return (
+    typeof scripts === "object" &&
+    (scripts.preuninstall || scripts.uninstall || scripts.postuninstall)
+  );
 }

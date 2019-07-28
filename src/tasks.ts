@@ -6,7 +6,8 @@ import * as Observable from "zen-observable";
 export interface Task {
   title: string | (() => string);
   task(): void | string | Promise<void | string> | Observable<string>;
-  final?: boolean;
+  final?: boolean | (() => boolean);
+  skip?: boolean | (() => boolean);
 }
 
 function getTaskTitle(task: Task): string {
@@ -28,6 +29,10 @@ export class TaskManager {
     return chalk.red("✘");
   }
 
+  getSkip(): string {
+    return chalk.yellow("↓");
+  }
+
   getWait(): string {
     return chalk.yellow(">");
   }
@@ -35,7 +40,12 @@ export class TaskManager {
   async run() {
     let lastTask: Task | undefined;
     for (const task of this.tasks) {
-      if (lastTask && lastTask.final) {
+      if (getSkip(task)) {
+        console.log(`${this.getSkip()} ${getTaskTitle(task)}`);
+        continue;
+      }
+
+      if (lastTask && getFinal(lastTask)) {
         break;
       }
       lastTask = task;
@@ -88,9 +98,25 @@ export class TaskManager {
         });
       } catch (e) {
         logUpdate(`${this.getFailure()} ${getTaskTitle(task)}`);
-        console.error(e);
+        if (e.message) {
+          console.error(e.message);
+        }
         break;
       }
     }
   }
+}
+
+function getSkip(task: Task): boolean {
+  if (!task.skip) {
+    return false;
+  }
+  return typeof task.skip === "function" ? task.skip.call(task) : task.skip;
+}
+
+function getFinal(task: Task): boolean {
+  if (!task.final) {
+    return false;
+  }
+  return typeof task.final === "function" ? task.final.call(task) : task.final;
 }
