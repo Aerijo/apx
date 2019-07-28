@@ -13,6 +13,19 @@ export enum Target {
   DEV,
 }
 
+export function displayNameForTarget(target: Target): string {
+  switch (target) {
+    case Target.STABLE:
+      return "Atom";
+    case Target.BETA:
+      return "Atom Beta";
+    case Target.NIGHTLY:
+      return "Atom Nightly";
+    case Target.DEV:
+      return "Atom Dev";
+  }
+}
+
 export class Context {
   private atomDirectory: string | undefined;
   private resourceDirectory: string | undefined;
@@ -78,8 +91,8 @@ export class Context {
     }
   }
 
-  calculateResourceDirectory(target: Target): string {
-    if (process.env.ATOM_RESOURCE_PATH) {
+  calculateResourceDirectory(target: Target, useEnv: boolean = true): string {
+    if (process.env.ATOM_RESOURCE_PATH && useEnv) {
       return process.env.ATOM_RESOURCE_PATH;
     }
 
@@ -186,13 +199,10 @@ export class Context {
 
   calculateAtomElectronVersions() {
     const resourceDir = this.getResourceDirectory();
-    let metadata;
-
-    if (path.extname(resourceDir) === ".asar") {
-      metadata = JSON.parse(asar.extractFile(resourceDir, "package.json").toString());
-    } else {
-      metadata = require(path.join(this.getResourceDirectory(), "package.json"));
-    }
+    const metadata =
+      path.extname(resourceDir) === ".asar"
+        ? JSON.parse(asar.extractFile(resourceDir, "package.json").toString())
+        : require(path.join(this.getResourceDirectory(), "package.json"));
 
     let {version: atomVersion, electronVersion} = metadata;
 

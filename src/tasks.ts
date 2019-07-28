@@ -5,7 +5,7 @@ import * as Observable from "zen-observable";
 
 export interface Task {
   title: string | (() => string);
-  task(): void | Promise<void> | Observable<string>;
+  task(): void | string | Promise<void | string> | Observable<string>;
   final?: boolean;
 }
 
@@ -47,17 +47,29 @@ export class TaskManager {
         if (spawned === undefined) {
           if (title) {
             logUpdate(`${this.getSuccess()} ${title}`);
-            logUpdate.done();
           }
+          logUpdate.done();
+          continue;
+        }
+
+        if (typeof spawned === "string") {
+          if (title) {
+            logUpdate(`${this.getSuccess()} ${title}`);
+          }
+          logUpdate.done();
+          console.log(spawned);
           continue;
         }
 
         logUpdate(`${this.getWait()} ${title}`);
 
         if (spawned instanceof Promise) {
-          await spawned;
+          const result = await spawned;
           logUpdate(`${this.getSuccess()} ${getTaskTitle(task)}`);
           logUpdate.done();
+          if (result) {
+            console.log(result);
+          }
           continue;
         }
 
@@ -76,7 +88,8 @@ export class TaskManager {
         });
       } catch (e) {
         logUpdate(`${this.getFailure()} ${getTaskTitle(task)}`);
-        throw new Error("aborting");
+        console.error(e);
+        break;
       }
     }
   }
