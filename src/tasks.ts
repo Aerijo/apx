@@ -42,12 +42,16 @@ export class TaskManager {
     for (const task of this.tasks) {
       if (getSkip(task)) {
         console.log(`${this.getSkip()} ${getTaskTitle(task)}`);
+        if (getFinal(task)) {
+          break;
+        }
         continue;
       }
 
       if (lastTask && getFinal(lastTask)) {
         break;
       }
+
       lastTask = task;
       try {
         const spawned = task.task();

@@ -2,10 +2,11 @@ import * as fs from "fs";
 import * as path from "path";
 
 export function getMetadata(packageDir: string): Promise<any> {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     fs.readFile(path.join(packageDir, "package.json"), {encoding: "utf8"}, (err, data) => {
       if (err) {
-        throw err;
+        reject(err);
+        return;
       }
       resolve(JSON.parse(data));
     });

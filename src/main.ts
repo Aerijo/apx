@@ -15,6 +15,7 @@ function getArguments(context: Context) {
   return yargs
     .scriptName("apx")
     .demandCommand(1)
+    .strict()
     .option("version", {
       alias: "v",
       describe: "Print the apx version",
@@ -91,12 +92,19 @@ function getArguments(context: Context) {
       command: "publish [newversion]",
       describe: "Publish the package",
       builder() {
-        return yargs.positional("newversion", {
-          describe:
-            "Optionally specify version bump, from patch, minor, major, or explicit of form x.y.z",
-          type: "string",
-          default: "",
-        });
+        return yargs
+          .positional("newversion", {
+            describe:
+              "Optionally specify version bump, from patch, minor, major, or explicit of form x.y.z",
+            type: "string",
+            default: "",
+          })
+          .option("assets", {
+            describe:
+              "Build and upload the package to the GitHub release. Pass --no-assets to disable",
+            type: "boolean",
+            default: true, // TODO: Make configurable in config
+          });
       },
       handler(argv) {
         const publish = new Publish(context);
