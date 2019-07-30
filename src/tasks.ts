@@ -49,7 +49,7 @@ export interface TaskParams {
    * passed to all previous tasks. It is also passed a reference to the task,
    * allowing actions such as changing the title, skipping, etc.
    */
-  task: (task: Task, ctx: TaskContext) => void; // | TaskManager (TODO)
+  task: (task: Task, ctx: TaskContext) => void | Promise<void>; // | TaskManager (TODO)
 
   /**
    * Controls whether the waiting symbol is an animated spinner,
@@ -61,7 +61,7 @@ export interface TaskParams {
 export class Task {
   ctx: TaskContext;
   title: string;
-  task: (task: Task, ctx: TaskContext) => void;
+  task: (task: Task, ctx: TaskContext) => void | Promise<void>;
   enabled: (ctx: TaskContext) => boolean;
   skip: (ctx: TaskContext) => boolean | string | Promise<boolean | string>;
   events: EventEmitter;
@@ -170,7 +170,7 @@ class SymbolProvider {
   }
 
   nonFatalError() {
-    return chalk.yellow("✘");
+    return chalk.yellow("!");
   }
 
   spinner(frame: number) {
@@ -224,17 +224,21 @@ export class TaskManager {
     }
 
     let intervalID: number | NodeJS.Timeout;
+    let postText: string = "";
     await new Promise<string | undefined>((resolve, reject) => {
       let frame = 0;
       let updateText: string | undefined;
-      let postText: string = "";
 
       const nextFrame = (sym?: string, msg?: string) => {
+        if (!msg) {
+          msg = updateText;
+        }
+
         let content = ` ${sym || (staticWait ? this.syms.wait() : this.syms.spinner(frame++))} ${
           task.title
         }`;
-        if (updateText) {
-          content += `\n   ${this.syms.update()} ${msg || updateText}`;
+        if (msg) {
+          content += `\n   ${this.syms.update()} ${chalk.grey(msg)}`;
         }
         logUpdate(content);
       };
@@ -255,7 +259,12 @@ export class TaskManager {
 
       task.events.on("nonFatalError", (message: string) => {
         clearInterval(intervalID as NodeJS.Timeout);
-        nextFrame(this.syms.nonFatalError(), message);
+        logUpdate(
+          ` ${this.syms.nonFatalError()} ${chalk.yellow(
+            task.title
+          )}\n   ${this.syms.update()} ${chalk.grey(message)}`
+        );
+        logUpdate.done();
         resolve(postText);
       });
 
@@ -283,18 +292,13 @@ export class TaskManager {
         intervalID = setInterval(nextFrame, 80);
       }
 
-      task.task(task, ctx);
+      const child = task.task(task, ctx);
+      if (child instanceof Promise) {
+        child.catch(e => {
+          reject(e);
+        });
+      }
     })
-      .then(postText => {
-        if (postText) {
-          process.stdout.write(
-            postText
-              .split("\n")
-              .map(l => `   ${l}`)
-              .join("\n")
-          );
-        }
-      })
       .catch(e => {
         clearInterval(intervalID as NodeJS.Timeout);
         logUpdate(` ${this.syms.error()} ${task.title}\n${chalk.red(e.message)}`);
@@ -303,6 +307,14 @@ export class TaskManager {
       })
       .finally(() => {
         clearInterval(intervalID as NodeJS.Timeout);
+        if (postText) {
+          process.stdout.write(
+            postText
+              .split("\n")
+              .map(l => `   ${l}`)
+              .join("\n")
+          );
+        }
       });
   }
 }

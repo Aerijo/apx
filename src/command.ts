@@ -25,6 +25,17 @@ export class Command {
     const child = spawn(command, args, {...options, env: {...process.env, ...options.env}});
 
     if (logOptions) {
+      if (logOptions.reject) {
+        child.on("error", (err: any) => {
+          if (err.code === "ENOENT") {
+            logOptions.reject(new Error(`Could not find '${command}' command`));
+            return;
+          } else {
+            throw err;
+          }
+        });
+      }
+
       let outstream: fs.WriteStream;
       let errstream: fs.WriteStream;
 
@@ -78,6 +89,15 @@ export class Command {
         });
       }
     }
+
+    if (options && options.stdio === "inherit") {
+      child.on("exit", () => {
+        // offsets line gobbled by line replacement util. Only one, because
+        // printing to console probably doesn't have status updates.
+        console.log();
+      });
+    }
+
     return child;
   }
 

@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as rimraf from "rimraf";
 import * as path from "path";
 import {Command} from "./command";
-import {TaskManager} from "./tasks";
+import {TaskManager, Task} from "./tasks";
 
 export class Doctor extends Command {
   constructor(context: Context) {
@@ -42,23 +42,25 @@ export class Doctor extends Command {
 
   doctorNpm(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const child = this.spawn("npm", ["doctor", "--loglevel=warn"], {stdio: "inherit"});
-
-      child.on("exit", (code, _signal) => {
-        if (code) {
-          reject(code);
-          return;
+      this.spawn("npm", ["doctor", "--loglevel=warn"], {stdio: "inherit"}, {reject}).on(
+        "exit",
+        (code, _signal) => {
+          if (code) {
+            reject(code);
+            return;
+          }
+          resolve();
         }
-        resolve();
-      });
+      );
     });
   }
 
-  checkNativeBuild(): Promise<void> {
+  checkNativeBuild(task: Task): Promise<void> {
     return new Promise((resolve, reject) => {
       const nativeModulePath = path.resolve(__dirname, "..", "resources", "native_module");
       fs.accessSync(path.resolve(nativeModulePath, "package.json")); // verify the path resolved to the native_modules correctly (can remove when tests added)
 
+      task.update("Clearing old build files");
       try {
         rimraf.sync(path.resolve(nativeModulePath, "build"));
       } catch (err) {
@@ -67,9 +69,15 @@ export class Doctor extends Command {
         }
       }
 
-      const child = this.spawn("npm", ["build", "."], {
-        cwd: nativeModulePath,
-      });
+      task.update("Building native module");
+      const child = this.spawn(
+        "npm",
+        ["build", "."],
+        {
+          cwd: nativeModulePath,
+        },
+        {reject}
+      );
 
       let out = "";
       child.stdout.on("data", d => (out += d));
@@ -77,10 +85,14 @@ export class Doctor extends Command {
 
       child.on("exit", (code, _status) => {
         if (code) {
-          reject(out);
+          out = out.trim() + "\n";
+          task.postWrite(out);
+          task.nonFatalError("Failed to build native module. Dumping output.");
+          reject();
           return;
         }
 
+        task.update("Clearing build files");
         rimraf(path.resolve(nativeModulePath, "build"), () => {
           resolve();
         });
@@ -96,7 +108,7 @@ export class Doctor extends Command {
     const tasks = new TaskManager([
       {
         title: () => "Detecting configuration",
-        task: async (task, ctx) => {
+        task: async task => {
           const results = await this.doctorApx();
           let prettyPrint = "";
           for (const [key, val] of results.entries()) {
@@ -108,18 +120,15 @@ export class Doctor extends Command {
       },
       {
         title: () => "Checking native build tools",
-        task: async (task, ctx) => {
-          try {
-            await this.checkNativeBuild();
-            task.complete("Successfully built native module");
-          } catch (e) {
-            task.error("Failed to build native module");
-          }
+        task: async task => {
+          await this.checkNativeBuild(task);
+          task.complete("Successfully built native module");
         },
       },
       {
         title: () => "Checking npm",
-        task: async (task, ctx) => {
+        staticWait: () => true,
+        task: async task => {
           await this.doctorNpm();
           task.complete();
         },

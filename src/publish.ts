@@ -1,5 +1,4 @@
 import {promisify} from "util";
-import * as child_process from "child_process";
 import {Arguments} from "yargs";
 import * as fs from "fs";
 import {Context} from "./context";
@@ -70,9 +69,9 @@ export class Publish extends Command {
    */
   pushVersionAndTag(_tag: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.spawn("git", ["push", "--follow-tags"]).on("exit", (code, _signal) => {
+      this.spawn("git", ["push", "--follow-tags"], {}, {reject}).on("exit", code => {
         if (code) {
-          reject(code);
+          reject(new Error(`Failed to push version and tag: code ${code}`));
         } else {
           resolve();
         }
@@ -80,7 +79,11 @@ export class Publish extends Command {
     });
   }
 
-  async awaitGitHubTag(tag: string): Promise<boolean> {
+  async awaitGitHubTag(
+    tag: string,
+    attempts: number,
+    attemptCounter: (attempt: number) => void
+  ): Promise<boolean> {
     const metadata = await getMetadata(this.cwd);
     const {owner, repo} = getGithubOwnerRepo(metadata);
     const query = `{
@@ -94,7 +97,8 @@ export class Publish extends Command {
     }`;
 
     // TODO: Actually might not be latest tag. Should check all of them.
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < attempts; i++) {
+      attemptCounter(i);
       const data = await getGithubGraphql(query);
       try {
         const latestTag = data.repository.refs.nodes[0].name;
@@ -224,21 +228,17 @@ export class Publish extends Command {
   }
 
   handler(argv: Arguments) {
-    let tag: string;
-    let tarname: string;
-    let releaseResult: RequestResult;
-
     const tasks = new TaskManager([
       {
         title: () => "Bumping package version",
+        staticWait: () => true,
         task: async (task, ctx) => {
           if (!ctx.versionBump) {
             task.error("Missing version not currently supported");
             return;
           }
-          tag = await this.updateVersion(ctx.versionBump);
-          ctx.tag = tag;
-          task.complete(`Bumped package version to ${tag}`);
+          ctx.tag = await this.updateVersion(ctx.versionBump);
+          task.complete(`Bumped package version to ${ctx.tag}`);
         },
       },
       {
@@ -246,8 +246,13 @@ export class Publish extends Command {
         task: async (task, ctx) => {
           task.update("Pushing to GitHub");
           await this.pushVersionAndTag(ctx.tag);
-          task.update("Waiting for tag to appear");
-          await this.awaitGitHubTag(ctx.tag);
+          task.update("Verifying tag is visible");
+          const attempts = 5;
+          await this.awaitGitHubTag(ctx.tag, attempts, i => {
+            if (i > 0) {
+              task.update(`Verifying tag is visible (attempt ${i + 1} of ${attempts})`);
+            }
+          });
           task.complete();
         },
       },
@@ -271,17 +276,17 @@ export class Publish extends Command {
         enabled: ctx => ctx.bundleRelease,
         task: async (task, ctx) => {
           task.update("Building assets");
-          tarname = await this.generateReleaseAssets("ignore");
+          ctx.tarname = await this.generateReleaseAssets("ignore");
 
           task.update("Creating GitHub release");
-          releaseResult = await this.createRelease(tag);
-          const code = releaseResult.response.statusCode;
+          ctx.releaseResult = await this.createRelease(ctx.tag);
+          const code = ctx.releaseResult.response.statusCode;
           if (code !== 201) {
-            task.error(`Could not create release: response code ${code}`);
+            throw new Error(`Could not create release: response code ${code}`);
           }
 
           task.update("Uploading assets to release");
-          await this.uploadAssets(releaseResult.body, tarname);
+          await this.uploadAssets(ctx.releaseResult.body, ctx.tarname);
           task.complete();
         },
       },
