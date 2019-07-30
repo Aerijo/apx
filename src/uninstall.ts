@@ -37,7 +37,7 @@ export class Uninstall extends Command {
     const tasks = new TaskManager([
       {
         title: () => `Uninstalling ${packageName}`,
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           const packagesDir = this.context.getAtomPackagesDirectory();
           const packageNames = await promisify(fs.readdir)(packagesDir);
 
@@ -61,14 +61,14 @@ export class Uninstall extends Command {
         skip: () => {
           return !runUninstallScript ? "No uninstall scripts" : false;
         },
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           await this.runScript("uninstall", scripts, packageDir); // also runs pre & post
           task.complete();
         },
       },
       {
         title: () => `Deleting ${packageDir}`,
-        task: (ctx, task) => {
+        task: (task, ctx) => {
           rimraf.sync(packageDir);
           task.complete();
         },

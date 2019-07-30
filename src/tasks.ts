@@ -49,7 +49,7 @@ export interface TaskParams {
    * passed to all previous tasks. It is also passed a reference to the task,
    * allowing actions such as changing the title, skipping, etc.
    */
-  task: (ctx: TaskContext, task: Task) => void; // | TaskManager (TODO)
+  task: (task: Task, ctx: TaskContext) => void; // | TaskManager (TODO)
 
   /**
    * Controls whether the waiting symbol is an animated spinner,
@@ -61,7 +61,7 @@ export interface TaskParams {
 export class Task {
   ctx: TaskContext;
   title: string;
-  task: (ctx: TaskContext, task: Task) => void;
+  task: (task: Task, ctx: TaskContext) => void;
   enabled: (ctx: TaskContext) => boolean;
   skip: (ctx: TaskContext) => boolean | string | Promise<boolean | string>;
   events: EventEmitter;
@@ -283,7 +283,7 @@ export class TaskManager {
         intervalID = setInterval(nextFrame, 80);
       }
 
-      task.task(ctx, task);
+      task.task(task, ctx);
     })
       .then(postText => {
         if (postText) {

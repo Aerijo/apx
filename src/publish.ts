@@ -231,7 +231,7 @@ export class Publish extends Command {
     const tasks = new TaskManager([
       {
         title: () => "Bumping package version",
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           if (!ctx.versionBump) {
             task.error("Missing version not currently supported");
             return;
@@ -243,7 +243,7 @@ export class Publish extends Command {
       },
       {
         title: ctx => `Publishing version ${ctx.tag} to GitHub`,
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           task.update("Pushing to GitHub");
           await this.pushVersionAndTag(tag);
           task.update("Waiting for tag to appear");
@@ -253,7 +253,7 @@ export class Publish extends Command {
       },
       {
         title: ctx => `Registering version ${ctx.tag} to atom.io`,
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           task.update("Registering package name");
           const metadata = await getMetadata(this.cwd);
           try {
@@ -269,7 +269,7 @@ export class Publish extends Command {
       {
         title: () => "Publishing package assets",
         enabled: ctx => ctx.bundleRelease,
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           task.update("Building assets");
           tarname = await this.generateReleaseAssets("ignore");
 

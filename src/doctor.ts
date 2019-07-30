@@ -96,7 +96,7 @@ export class Doctor extends Command {
     const tasks = new TaskManager([
       {
         title: () => "Detecting configuration",
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           const results = await this.doctorApx();
           let prettyPrint = "";
           for (const [key, val] of results.entries()) {
@@ -108,7 +108,7 @@ export class Doctor extends Command {
       },
       {
         title: () => "Checking native build tools",
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           try {
             await this.checkNativeBuild();
             task.complete("Successfully built native module");
@@ -119,7 +119,7 @@ export class Doctor extends Command {
       },
       {
         title: () => "Checking npm",
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           await this.doctorNpm();
           task.complete();
         },

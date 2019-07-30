@@ -173,7 +173,7 @@ export class Install extends Command {
     const tasks = new TaskManager([
       {
         title: () => "Preparing",
-        task: (ctx, task) => {
+        task: (task, ctx) => {
           try {
             const details = this.getPackageNameAndVersion(argv.uri as string);
             packageName = details.name;
@@ -193,7 +193,7 @@ export class Install extends Command {
       },
       {
         title: () => `Checking if ${packageName} is installed`,
-        task: (ctx, task) => {
+        task: (task, ctx) => {
           this.createAtomDirectories();
           fs.access(path.join(this.context.getAtomPackagesDirectory(), packageName), err => {
             if (!err || err.code !== "ENOENT") {
@@ -207,7 +207,7 @@ export class Install extends Command {
       },
       {
         title: () => `Getting package URL`,
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           try {
             tarball = await this.getPackageTarball(packageName, version);
             task.complete(tarball);
@@ -219,7 +219,7 @@ export class Install extends Command {
       {
         title: () => `Installing ${packageName} for Atom ${this.context.getAtomVersion()}`,
         staticWait: () => true,
-        task: async (ctx, task) => {
+        task: async (task, ctx) => {
           task.update("Downloading package");
           const downloadTemp = await this.downloadFromUrl(tarball);
           task.update("Moving download to packages folder");
