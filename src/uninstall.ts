@@ -31,8 +31,6 @@ export class Uninstall extends Command {
     const packageName = argv.package as string;
 
     let runUninstallScript = false;
-    let scripts: any;
-    let packageDir: string;
 
     const tasks = new TaskManager([
       {
@@ -46,10 +44,15 @@ export class Uninstall extends Command {
             throw new Error();
           }
 
-          packageDir = path.join(packagesDir, packageName);
-          const metadata = await getMetadata(packageDir);
-          scripts = metadata.scripts;
-          if (typeof scripts === "object" && hasUninstallScript(scripts)) {
+          ctx.packageDir = path.join(packagesDir, packageName);
+          try {
+            const metadata = await getMetadata(ctx.packageDir);
+            ctx.scripts = metadata.scripts;
+          } catch (e) {
+            task.error(e.message);
+            return;
+          }
+          if (typeof ctx.scripts === "object" && hasUninstallScript(ctx.scripts)) {
             runUninstallScript = true;
           }
 
@@ -62,14 +65,14 @@ export class Uninstall extends Command {
           return !runUninstallScript ? "No uninstall scripts" : false;
         },
         task: async (task, ctx) => {
-          await this.runScript("uninstall", scripts, packageDir); // also runs pre & post
+          await this.runScript("uninstall", ctx.scripts, ctx.packageDir); // also runs pre & post
           task.complete();
         },
       },
       {
-        title: () => `Deleting ${packageDir}`,
+        title: ctx => `Deleting ${ctx.packageDir}`,
         task: (task, ctx) => {
-          rimraf.sync(packageDir);
+          rimraf.sync(ctx.packageDir);
           task.complete();
         },
       },

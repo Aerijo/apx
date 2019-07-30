@@ -245,9 +245,9 @@ export class Publish extends Command {
         title: ctx => `Publishing version ${ctx.tag} to GitHub`,
         task: async (task, ctx) => {
           task.update("Pushing to GitHub");
-          await this.pushVersionAndTag(tag);
+          await this.pushVersionAndTag(ctx.tag);
           task.update("Waiting for tag to appear");
-          await this.awaitGitHubTag(tag);
+          await this.awaitGitHubTag(ctx.tag);
           task.complete();
         },
       },
@@ -255,14 +255,14 @@ export class Publish extends Command {
         title: ctx => `Registering version ${ctx.tag} to atom.io`,
         task: async (task, ctx) => {
           task.update("Registering package name");
-          const metadata = await getMetadata(this.cwd);
           try {
+            const metadata = await getMetadata(this.cwd);
             await this.registerPackage(metadata);
           } catch (e) {
             task.error(e.message);
           }
           task.update("Publishing version");
-          await this.publishVersion(tag);
+          await this.publishVersion(ctx.tag);
           task.complete();
         },
       },
