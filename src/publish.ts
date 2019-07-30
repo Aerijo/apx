@@ -156,13 +156,13 @@ export class Publish extends Command {
     return result;
   }
 
-  runPrepublishAndPack(): Promise<void> {
+  runPrepublishAndPack(stdio: string = "inherit"): Promise<void> {
     return new Promise(resolve => {
-      this.spawn("npm", ["run", "prepublishOnly"], {stdio: "inherit"}).on("exit", code => {
+      this.spawn("npm", ["run", "prepublishOnly"], {stdio}).on("exit", code => {
         if (code) {
           throw new Error(`Prepublish script failed with code ${code}`);
         }
-        this.spawn("npm", ["pack"], {stdio: "inherit"}).on("exit", code2 => {
+        this.spawn("npm", ["pack"], {stdio}).on("exit", code2 => {
           if (code2) {
             throw new Error(`npm pack failed with code ${code2}`);
           }
@@ -172,7 +172,7 @@ export class Publish extends Command {
     });
   }
 
-  async generateReleaseAssets(): Promise<string> {
+  async generateReleaseAssets(stdio?: string): Promise<string> {
     const metadata = await getMetadata(this.cwd);
 
     if (typeof metadata.name !== "string") {
@@ -203,7 +203,7 @@ export class Publish extends Command {
       throw new Error(`File ${tarname} cannot exist when publishing`);
     }
 
-    await this.runPrepublishAndPack();
+    await this.runPrepublishAndPack(stdio);
 
     return tarname;
   }
@@ -224,38 +224,25 @@ export class Publish extends Command {
   }
 
   handler(argv: Arguments) {
-    const version = argv.newversion as string;
     let tag: string;
     let tarname: string;
     let releaseResult: RequestResult;
 
     const tasks = new TaskManager([
       {
-        title: () => "Registering package",
+        title: () => "Bumping package version",
         task: async (ctx, task) => {
-          if (typeof version !== "string") {
+          if (!ctx.versionBump) {
             task.error("Missing version not currently supported");
             return;
           }
-          const metadata = await getMetadata(this.cwd);
-          try {
-            const results = await this.registerPackage(metadata);
-            task.complete(results);
-          } catch (e) {
-            task.error(e.message);
-          }
-        },
-      },
-      {
-        title: () => "Bumping package version",
-        task: async (ctx, task) => {
-          tag = await this.updateVersion(version);
+          tag = await this.updateVersion(ctx.versionBump);
           ctx.tag = tag;
           task.complete(`Bumped package version to ${tag}`);
         },
       },
       {
-        title: ctx => `Publish version ${ctx.tag} to GitHub`,
+        title: ctx => `Publishing version ${ctx.tag} to GitHub`,
         task: async (ctx, task) => {
           task.update("Pushing to GitHub");
           await this.pushVersionAndTag(tag);
@@ -267,41 +254,42 @@ export class Publish extends Command {
       {
         title: ctx => `Registering version ${ctx.tag} to atom.io`,
         task: async (ctx, task) => {
+          task.update("Registering package name");
+          const metadata = await getMetadata(this.cwd);
+          try {
+            await this.registerPackage(metadata);
+          } catch (e) {
+            task.error(e.message);
+          }
+          task.update("Publishing version");
           await this.publishVersion(tag);
           task.complete();
         },
       },
       {
-        title: () => "Building package assets",
+        title: () => "Publishing package assets",
         enabled: ctx => ctx.bundleRelease,
         task: async (ctx, task) => {
-          tarname = await this.generateReleaseAssets();
-          task.complete();
-        },
-      },
-      {
-        title: ctx => `Creating GitHub release for ${ctx.tag}`,
-        enabled: ctx => ctx.bundleRelease,
-        task: async (ctx, task) => {
+          task.update("Building assets");
+          tarname = await this.generateReleaseAssets("ignore");
+
+          task.update("Creating GitHub release");
           releaseResult = await this.createRelease(tag);
           const code = releaseResult.response.statusCode;
-          if (code === 201) {
-            task.complete();
-          } else {
+          if (code !== 201) {
             task.error(`Could not create release: response code ${code}`);
           }
-        },
-      },
-      {
-        title: () => "Uploading assets to release",
-        enabled: ctx => ctx.bundleRelease,
-        task: async (ctx, task) => {
+
+          task.update("Uploading assets to release");
           await this.uploadAssets(releaseResult.body, tarname);
           task.complete();
         },
       },
     ]);
 
-    tasks.run({bundleRelease: argv.assets});
+    tasks.run({
+      bundleRelease: argv.assets,
+      versionBump: argv.newversion,
+    });
   }
 }
