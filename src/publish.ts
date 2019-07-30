@@ -234,16 +234,15 @@ export class Publish extends Command {
         title: () => "Registering package",
         task: async (ctx, task) => {
           if (typeof version !== "string") {
-            task.setTitle("Missing version not currently supported");
-            throw new Error();
+            task.error("Missing version not currently supported");
+            return;
           }
           const metadata = await getMetadata(this.cwd);
           try {
             const results = await this.registerPackage(metadata);
-            task.setTitle(results);
+            task.complete(results);
           } catch (e) {
-            task.setTitle(e.message);
-            throw new Error();
+            task.error(e.message);
           }
         },
       },
@@ -251,55 +250,58 @@ export class Publish extends Command {
         title: () => "Bumping package version",
         task: async (ctx, task) => {
           tag = await this.updateVersion(version);
-          task.setTitle(`Bumped package version to ${tag}`);
+          ctx.tag = tag;
+          task.complete(`Bumped package version to ${tag}`);
         },
       },
       {
-        title: () => "Pushing new version",
+        title: ctx => `Publish version ${ctx.tag} to GitHub`,
         task: async (ctx, task) => {
+          task.update("Pushing to GitHub");
           await this.pushVersionAndTag(tag);
+          task.update("Waiting for tag to appear");
           await this.awaitGitHubTag(tag);
-          task.setTitle(`Pushed version ${tag} to GitHub`);
+          task.complete();
         },
       },
       {
-        title: () => "Publishing new version to atom.io",
+        title: ctx => `Registering version ${ctx.tag} to atom.io`,
         task: async (ctx, task) => {
           await this.publishVersion(tag);
-          task.setTitle(`Successfully published ${tag} to atom.io`);
+          task.complete();
         },
       },
       {
         title: () => "Building package assets",
-        skip: ctx => {
-          const skip = !argv.assets;
-          return skip ? "Asset upload disabled" : false;
-        },
-        task: async () => {
+        enabled: ctx => ctx.bundleRelease,
+        task: async (ctx, task) => {
           tarname = await this.generateReleaseAssets();
+          task.complete();
         },
       },
       {
-        title: () => `Creating GitHub release for ${tag}`,
+        title: ctx => `Creating GitHub release for ${ctx.tag}`,
+        enabled: ctx => ctx.bundleRelease,
         task: async (ctx, task) => {
           releaseResult = await this.createRelease(tag);
           const code = releaseResult.response.statusCode;
-          if (code !== 201) {
-            task.setTitle(`Could not create release: error ${code}`);
-            throw new Error();
+          if (code === 201) {
+            task.complete();
+          } else {
+            task.error(`Could not create release: response code ${code}`);
           }
-          task.setTitle(`Created GitHub release for ${tag}`);
         },
       },
       {
         title: () => "Uploading assets to release",
+        enabled: ctx => ctx.bundleRelease,
         task: async (ctx, task) => {
           await this.uploadAssets(releaseResult.body, tarname);
-          task.setTitle("Uploaded assets");
+          task.complete();
         },
       },
     ]);
 
-    tasks.run();
+    tasks.run({bundleRelease: argv.assets});
   }
 }
