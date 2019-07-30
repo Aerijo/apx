@@ -27,9 +27,8 @@ export class Uninstall extends Command {
     return Promise.resolve();
   }
 
-  async handler(argv: Arguments) {
+  handler(argv: Arguments) {
     const packageName = argv.package as string;
-    const self = this;
 
     let runUninstallScript = false;
     let scripts: any;
@@ -38,12 +37,12 @@ export class Uninstall extends Command {
     const tasks = new TaskManager([
       {
         title: () => `Uninstalling ${packageName}`,
-        async task() {
-          const packagesDir = self.context.getAtomPackagesDirectory();
+        task: async (ctx, task) => {
+          const packagesDir = this.context.getAtomPackagesDirectory();
           const packageNames = await promisify(fs.readdir)(packagesDir);
 
           if (packageNames.indexOf(packageName) < 0) {
-            this.title = `Package ${packageName} not installed`;
+            task.setTitle(`Package ${packageName} not installed`);
             throw new Error();
           }
 
@@ -53,24 +52,25 @@ export class Uninstall extends Command {
           if (typeof scripts === "object" && hasUninstallScript(scripts)) {
             runUninstallScript = true;
           }
+
+          task.complete();
         },
       },
       {
-        title: "Running uninstall scripts",
-        skip() {
-          if (!runUninstallScript) {
-            this.title = "No uninstall scripts - skipping";
-          }
-          return !runUninstallScript;
+        title: () => "Running uninstall scripts",
+        skip: () => {
+          return !runUninstallScript ? "No uninstall scripts" : false;
         },
-        async task() {
-          await self.runScript("uninstall", scripts, packageDir); // also runs pre & post
+        task: async (ctx, task) => {
+          await this.runScript("uninstall", scripts, packageDir); // also runs pre & post
+          task.complete();
         },
       },
       {
         title: () => `Deleting ${packageDir}`,
-        task() {
+        task: (ctx, task) => {
           rimraf.sync(packageDir);
+          task.complete();
         },
       },
     ]);

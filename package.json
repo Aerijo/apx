@@ -37,8 +37,7 @@
     "semver": "^6.2.0",
     "tmp-promise": "^2.0.2",
     "validate-npm-package-name": "^3.0.0",
-    "yargs": "^13.2.4",
-    "zen-observable": "^0.8.14"
+    "yargs": "^13.2.4"
   },
   "devDependencies": {
     "@types/node": "^12.6.1",
@@ -47,7 +46,6 @@
     "@types/semver": "^6.0.1",
     "@types/tmp": "^0.1.0",
     "@types/yargs": "^13.0.0",
-    "@types/zen-observable": "^0.8.0",
     "prettier": "1.18.2",
     "tslib": "^1.10.0",
     "tslint": "^5.18.0",

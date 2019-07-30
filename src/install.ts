@@ -78,7 +78,6 @@ export class Install extends Command {
   }
 
   installDependencies(_argv: Arguments, task: Task): Promise<void> {
-    task.final = true;
     return new Promise((resolve, reject) => {
       const child = this.spawn("npm", ["install"], {stdio: "inherit"});
       child.on("exit", (code, status) => {
@@ -165,80 +164,66 @@ export class Install extends Command {
     return {name, version};
   }
 
-  async handler(argv: Arguments) {
+  handler(argv: Arguments) {
     let packageName: string;
     let version: string | undefined;
 
-    const self = this;
     let tarball = "";
-    let downloadTemp: tmp.DirectoryResult;
 
     const tasks = new TaskManager([
       {
-        title: "",
-        task() {
+        title: () => "Preparing",
+        task: (ctx, task) => {
           try {
-            const details = self.getPackageNameAndVersion(argv.uri as string);
+            const details = this.getPackageNameAndVersion(argv.uri as string);
             packageName = details.name;
             version = details.version;
           } catch {
-            this.title = "Could not parse package name and version";
-            throw new Error();
+            task.error("Could not parse package name and version");
+            return;
           }
 
           if (!packageName || packageName === ".") {
-            this.title = "Installing dependencies";
-            return self.installDependencies(argv, this);
+            task.setTitle("Installing dependencies");
+            return this.installDependencies(argv, task);
           }
+
+          task.disable();
         },
       },
       {
         title: () => `Checking if ${packageName} is installed`,
-        task() {
-          return new Promise((resolve, reject) => {
-            self.createAtomDirectories();
+        task: (ctx, task) => {
+          this.createAtomDirectories();
+          fs.access(path.join(this.context.getAtomPackagesDirectory(), packageName), err => {
+            if (!err || err.code !== "ENOENT") {
+              task.error(`Package ${packageName} already installed`);
+              return;
+            }
 
-            fs.access(path.join(self.context.getAtomPackagesDirectory(), packageName), err => {
-              if (!err || err.code !== "ENOENT") {
-                this.title = () => `Package ${packageName} already installed`;
-                reject();
-                return;
-              }
-
-              this.title = () => `No other version of ${packageName} detected`;
-              resolve();
-            });
+            task.complete();
           });
         },
       },
       {
-        title: `Getting package URL`,
-        async task() {
-          tarball = await self.getPackageTarball(packageName, version);
-          this.title = `Got package URL - ${tarball}`;
+        title: () => `Getting package URL`,
+        task: async (ctx, task) => {
+          tarball = await this.getPackageTarball(packageName, version);
+          task.complete(tarball);
         },
       },
       {
-        title: () =>
-          `Installing ${packageName} for Atom ${self.context.getAtomVersion.call(self.context)}`,
-        async task() {
-          downloadTemp = await self.downloadFromUrl(tarball);
+        title: () => `Installing ${packageName} for Atom ${this.context.getAtomVersion()}`,
+        task: async (ctx, task) => {
+          task.update("Downloading package");
+          const downloadTemp = await this.downloadFromUrl(tarball);
+          task.update("Moving download to packages folder");
+          await this.movePackageAndCleanup(downloadTemp);
+          task.complete();
         },
-      },
-      {
-        title: `Moving download to packages folder`,
-        async task() {
-          await self.movePackageAndCleanup(downloadTemp);
-        },
-      },
-      {
-        title: () => `Successfully installed ${packageName}`,
-        task() {},
       },
     ]);
 
-    try {
-      await tasks.run();
-    } catch {}
+    tasks.run();
   }
 }

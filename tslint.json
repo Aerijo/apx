@@ -58,7 +58,7 @@
     "no-unnecessary-qualifier": true,
     "object-literal-shorthand": true,
     "prefer-function-over-method": [true, "allow-public", "allow-protected"],
-    "prefer-method-signature": true,
+    "prefer-method-signature": false,
     "prefer-template": [true, "allow-single-concat"],
     "prefer-while": true,
     "return-undefined": true,

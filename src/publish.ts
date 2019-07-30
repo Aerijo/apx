@@ -223,9 +223,8 @@ export class Publish extends Command {
     }
   }
 
-  async handler(argv: Arguments) {
+  handler(argv: Arguments) {
     const version = argv.newversion as string;
-    const self = this;
     let tag: string;
     let tarname: string;
     let releaseResult: RequestResult;
@@ -233,74 +232,70 @@ export class Publish extends Command {
     const tasks = new TaskManager([
       {
         title: () => "Registering package",
-        async task() {
+        task: async (ctx, task) => {
           if (typeof version !== "string") {
-            this.title = "Missing version not currently supported";
+            task.setTitle("Missing version not currently supported");
             throw new Error();
           }
-          const metadata = await getMetadata(self.cwd);
+          const metadata = await getMetadata(this.cwd);
           try {
-            const results = await self.registerPackage(metadata);
-            this.title = results;
+            const results = await this.registerPackage(metadata);
+            task.setTitle(results);
           } catch (e) {
-            this.title = e.message;
+            task.setTitle(e.message);
             throw new Error();
           }
         },
       },
       {
-        title: "Bumping package version",
-        async task() {
-          tag = await self.updateVersion(version);
-          this.title = `Bumped package version to ${tag}`;
+        title: () => "Bumping package version",
+        task: async (ctx, task) => {
+          tag = await this.updateVersion(version);
+          task.setTitle(`Bumped package version to ${tag}`);
         },
       },
       {
-        title: "Pushing new version",
-        async task() {
-          await self.pushVersionAndTag(tag);
-          await self.awaitGitHubTag(tag);
-          this.title = `Pushed version ${tag} to GitHub`;
+        title: () => "Pushing new version",
+        task: async (ctx, task) => {
+          await this.pushVersionAndTag(tag);
+          await this.awaitGitHubTag(tag);
+          task.setTitle(`Pushed version ${tag} to GitHub`);
         },
       },
       {
-        title: "Publishing new version to atom.io",
-        async task() {
-          await self.publishVersion(tag);
-          this.title = `Successfully published ${tag} to atom.io`;
+        title: () => "Publishing new version to atom.io",
+        task: async (ctx, task) => {
+          await this.publishVersion(tag);
+          task.setTitle(`Successfully published ${tag} to atom.io`);
         },
       },
       {
-        title: "Building package assets",
-        skip() {
+        title: () => "Building package assets",
+        skip: ctx => {
           const skip = !argv.assets;
-          if (skip) {
-            this.title = "Asset upload disabled - skipping";
-          }
-          return skip;
+          return skip ? "Asset upload disabled" : false;
         },
-        final: !argv.assets,
-        async task() {
-          tarname = await self.generateReleaseAssets();
+        task: async () => {
+          tarname = await this.generateReleaseAssets();
         },
       },
       {
         title: () => `Creating GitHub release for ${tag}`,
-        async task() {
-          releaseResult = await self.createRelease(tag);
+        task: async (ctx, task) => {
+          releaseResult = await this.createRelease(tag);
           const code = releaseResult.response.statusCode;
           if (code !== 201) {
-            this.title = `Could not create release: error ${code}`;
+            task.setTitle(`Could not create release: error ${code}`);
             throw new Error();
           }
-          this.title = `Created GitHub release for ${tag}`;
+          task.setTitle(`Created GitHub release for ${tag}`);
         },
       },
       {
-        title: "Uploading assets to release",
-        async task() {
-          await self.uploadAssets(releaseResult.body, tarname);
-          this.title = "Uploaded assets";
+        title: () => "Uploading assets to release",
+        task: async (ctx, task) => {
+          await this.uploadAssets(releaseResult.body, tarname);
+          task.setTitle("Uploaded assets");
         },
       },
     ]);

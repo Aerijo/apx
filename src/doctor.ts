@@ -92,39 +92,36 @@ export class Doctor extends Command {
     return 0; // TODO: Verify the Atom install & .atom folder is valid
   }
 
-  async handler(_argv: Arguments) {
-    const self = this;
+  handler(_argv: Arguments) {
     const tasks = new TaskManager([
       {
-        title: "Detecting configuration",
-        async task() {
-          const results = await self.doctorApx();
+        title: () => "Detecting configuration",
+        task: async (ctx, task) => {
+          const results = await this.doctorApx();
           let prettyPrint = "";
           for (const [key, val] of results.entries()) {
             prettyPrint += `- ${key}: ${val}\n`;
           }
-
-          this.title = "Detected configuration";
-          return prettyPrint;
+          task.postWrite(prettyPrint);
+          task.complete();
         },
       },
       {
-        title: "Checking native build tools",
-        async task() {
+        title: () => "Checking native build tools",
+        task: async (ctx, task) => {
           try {
-            await self.checkNativeBuild();
-            this.title = "Successfully built native module";
+            await this.checkNativeBuild();
+            task.complete("Successfully built native module");
           } catch (e) {
-            this.title = "Failed to build native module; dumping output";
-            throw new Error(e);
+            task.error("Failed to build native module");
           }
         },
       },
       {
-        title: "Checking npm",
-        async task() {
-          await self.doctorNpm();
-          this.title = "Checked npm";
+        title: () => "Checking npm",
+        task: async (ctx, task) => {
+          await this.doctorNpm();
+          task.complete();
         },
       },
     ]);
