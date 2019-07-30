@@ -3,6 +3,16 @@ import chalk from "chalk";
 import * as logUpdate from "log-update";
 import {EventEmitter} from "events";
 
+process.on("unhandledRejection", (reason, promise) => {
+  logUpdate.done();
+  console.log(
+    chalk.red("Unhandled rejection, please report this to https://github.com/Aerijo/apx/issues")
+  );
+  console.log("Reason:", reason);
+  console.log("Promise:", promise);
+  process.exit(1);
+});
+
 export interface TaskContext {
   [key: string]: any;
 }
@@ -40,6 +50,12 @@ export interface TaskParams {
    * allowing actions such as changing the title, skipping, etc.
    */
   task: (ctx: TaskContext, task: Task) => void; // | TaskManager (TODO)
+
+  /**
+   * Controls whether the waiting symbol is an animated spinner,
+   * or a static symbol (useful when piping npm output)
+   */
+  staticWait?: (ctx: TaskContext) => boolean;
 }
 
 export class Task {
@@ -158,7 +174,7 @@ class SymbolProvider {
   }
 
   spinner(frame: number) {
-    return chalk.yellow(["⠏", "⠹", "⠼", "⠧"][frame % 4]);
+    return chalk.yellow(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"][frame % 10]);
   }
 }
 
@@ -175,14 +191,23 @@ export class TaskManager {
   }
 
   async run(ctx: TaskContext = {}): Promise<void> {
+    const start = new Date();
     for (const params of this.tasks) {
-      await this.executeTask(params, ctx);
+      try {
+        await this.executeTask(params, ctx);
+      } catch (e) {
+        break;
+      }
     }
+    const end = new Date();
+
+    console.log(chalk.grey(`elapsed: ${end.getTime() - start.getTime()}ms`));
   }
 
   async executeTask(params: TaskParams, ctx: TaskContext): Promise<void> {
     logUpdate.done();
 
+    const staticWait = typeof params.staticWait === "function" && params.staticWait(ctx);
     const task = new Task(params, ctx);
 
     if (!task.enabled(ctx)) {
@@ -198,21 +223,26 @@ export class TaskManager {
       return;
     }
 
+    let intervalID: number | NodeJS.Timeout;
     await new Promise<string | undefined>((resolve, reject) => {
+      let frame = 0;
       let updateText: string | undefined;
       let postText: string = "";
 
       const nextFrame = (sym?: string, msg?: string) => {
-        let content = ` ${sym || this.syms.wait()} ${task.title}`;
+        let content = ` ${sym || (staticWait ? this.syms.wait() : this.syms.spinner(frame++))} ${
+          task.title
+        }`;
         if (updateText) {
           content += `\n   ${this.syms.update()} ${msg || updateText}`;
         }
         logUpdate(content);
       };
 
-      logUpdate(` ${this.syms.wait()} ${task.title}`);
+      nextFrame();
 
       task.events.on("complete", (completionUpdate?: string) => {
+        clearInterval(intervalID as NodeJS.Timeout);
         updateText = completionUpdate;
         nextFrame(this.syms.complete());
         logUpdate.done();
@@ -220,12 +250,11 @@ export class TaskManager {
       });
 
       task.events.on("error", (message: string) => {
-        logUpdate(` ${this.syms.error()} ${task.title}\n${chalk.red(message)}`);
-        logUpdate.done();
-        reject(message);
+        reject(new Error(message));
       });
 
       task.events.on("nonFatalError", (message: string) => {
+        clearInterval(intervalID as NodeJS.Timeout);
         nextFrame(this.syms.nonFatalError(), message);
         resolve(postText);
       });
@@ -241,6 +270,7 @@ export class TaskManager {
       });
 
       task.events.on("disable", () => {
+        clearInterval(intervalID as NodeJS.Timeout);
         logUpdate.clear();
         resolve();
       });
@@ -249,25 +279,31 @@ export class TaskManager {
         postText += data;
       });
 
-      try {
-        task.task(ctx, task);
-      } catch (e) {
+      if (!staticWait) {
+        intervalID = setInterval(nextFrame, 80);
+      }
+
+      task.task(ctx, task);
+    })
+      .then(postText => {
+        if (postText) {
+          process.stdout.write(
+            postText
+              .split("\n")
+              .map(l => `   ${l}`)
+              .join("\n")
+          );
+        }
+      })
+      .catch(e => {
+        clearInterval(intervalID as NodeJS.Timeout);
         logUpdate(` ${this.syms.error()} ${task.title}\n${chalk.red(e.message)}`);
         logUpdate.done();
-        reject(e.message);
-      }
-    }).then(postText => {
-      if (postText) {
-        process.stdout.write(
-          postText
-            .split("\n")
-            .map(l => `   ${l}`)
-            .join("\n")
-        );
-      }
-    });
-
-    return;
+        throw new Error("Task failed");
+      })
+      .finally(() => {
+        clearInterval(intervalID as NodeJS.Timeout);
+      });
   }
 }
 
