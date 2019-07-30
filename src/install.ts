@@ -208,12 +208,17 @@ export class Install extends Command {
       {
         title: () => `Getting package URL`,
         task: async (ctx, task) => {
-          tarball = await this.getPackageTarball(packageName, version);
-          task.complete(tarball);
+          try {
+            tarball = await this.getPackageTarball(packageName, version);
+            task.complete(tarball);
+          } catch (e) {
+            task.error(e.message);
+          }
         },
       },
       {
         title: () => `Installing ${packageName} for Atom ${this.context.getAtomVersion()}`,
+        staticWait: () => true,
         task: async (ctx, task) => {
           task.update("Downloading package");
           const downloadTemp = await this.downloadFromUrl(tarball);
