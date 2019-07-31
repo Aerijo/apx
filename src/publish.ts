@@ -1,6 +1,7 @@
 import {promisify} from "util";
 import {Arguments} from "yargs";
 import * as fs from "fs";
+import * as path from "path";
 import {Context} from "./context";
 import {getGithubOwnerRepo, getMetadata} from "./package";
 import {post, getAtomioErrorMessage, getGithubGraphql, RequestResult, uploadAsset} from "./request";
@@ -231,8 +232,15 @@ export class Publish extends Command {
     const tasks = new TaskManager([
       {
         title: () => "Inspecting repo state",
-        task: task => {
-          // TODO: Verify commits pushed, on master branch, no apx-bundled tars
+        task: async task => {
+          // TODO: Verify commits pushed, on master branch
+          const dirContents = await promisify(fs.readdir)(this.cwd);
+          for (const item of dirContents) {
+            if (path.extname(item) === ".tgz") {
+              // TODO: Either find a way to have npm place them elsewhere, or more fine tuned criteria
+              throw new Error(`Repository contains old build artifact ${item}`);
+            }
+          }
           task.complete();
         },
       },
