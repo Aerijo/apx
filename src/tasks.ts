@@ -90,6 +90,10 @@ export class Task {
     this.events.emit("complete", message);
   }
 
+  finalComplete(message?: string) {
+    this.events.emit("final", message);
+  }
+
   /**
    * Flags the task as fatally errored, all further events will be
    * ignored, and the TaskManager will not run any more tasks. Alternatively,
@@ -194,7 +198,10 @@ export class TaskManager {
     const start = new Date();
     for (const params of this.tasks) {
       try {
-        await this.executeTask(params, ctx);
+        const doNext = await this.executeTask(params, ctx);
+        if (!doNext) {
+          break;
+        }
       } catch (e) {
         break;
       }
@@ -204,14 +211,14 @@ export class TaskManager {
     console.log(chalk.grey(`elapsed: ${end.getTime() - start.getTime()}ms`));
   }
 
-  async executeTask(params: TaskParams, ctx: TaskContext): Promise<void> {
+  async executeTask(params: TaskParams, ctx: TaskContext): Promise<boolean> {
     logUpdate.done();
 
     const staticWait = typeof params.staticWait === "function" && params.staticWait(ctx);
     const task = new Task(params, ctx);
 
     if (!task.enabled(ctx)) {
-      return;
+      return true;
     }
 
     const skip = await getResolved(task.skip(task.ctx));
@@ -220,11 +227,12 @@ export class TaskManager {
       if (typeof skip === "string") {
         console.log(chalk.grey(`   ${this.syms.update()} ${skip}`));
       }
-      return;
+      return true;
     }
 
     let intervalID: number | NodeJS.Timeout;
     let postText: string = "";
+    let isFinal: boolean = false;
     await new Promise<string | undefined>((resolve, reject) => {
       let frame = 0;
       let updateText: string | undefined;
@@ -246,6 +254,15 @@ export class TaskManager {
       nextFrame();
 
       task.events.on("complete", (completionUpdate?: string) => {
+        clearInterval(intervalID as NodeJS.Timeout);
+        updateText = completionUpdate;
+        nextFrame(this.syms.complete());
+        logUpdate.done();
+        resolve(postText);
+      });
+
+      task.events.on("final", (completionUpdate?: string) => {
+        isFinal = true;
         clearInterval(intervalID as NodeJS.Timeout);
         updateText = completionUpdate;
         nextFrame(this.syms.complete());
@@ -316,6 +333,7 @@ export class TaskManager {
           );
         }
       });
+    return !isFinal;
   }
 }
 

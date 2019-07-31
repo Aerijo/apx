@@ -7,7 +7,7 @@ import * as tmp from "tmp-promise";
 tmp.setGracefulCleanup();
 import {promisify} from "util";
 import {Context} from "./context";
-import {get, getGithubGraphql} from "./request";
+import {get, getGithubGraphql, getAtomioErrorMessage} from "./request";
 import {getGithubOwnerRepo, getMetadata} from "./package";
 import {Command} from "./command";
 import {TaskManager, Task} from "./tasks";
@@ -32,22 +32,6 @@ export class Install extends Command {
     ]);
   }
 
-  getInstallPromise(tarballUrl: string, dir: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-      this.spawn("npm", ["install", "--global-style", "--loglevel=error", tarballUrl], {
-        cwd: dir,
-        stdio: "inherit",
-      }).on("exit", (code, status) => {
-        reject({code, status});
-        if (code !== 0) {
-          reject({code, status});
-        } else {
-          resolve(code);
-        }
-      });
-    });
-  }
-
   async downloadFromUrl(tarball: string): Promise<tmp.DirectoryResult> {
     const installDir = await tmp.dir({prefix: "apx-install-", unsafeCleanup: true});
     await new Promise((resolve, reject) => {
@@ -57,10 +41,10 @@ export class Install extends Command {
       });
 
       child.on("exit", (code, status) => {
-        if (code !== 0) {
-          reject(`Install failed with code ${code} and status ${status}`);
-        } else {
+        if (code === 0) {
           resolve();
+        } else {
+          reject(new Error(`npm install failed with code ${code} and status ${status}`));
         }
       });
     });
@@ -86,12 +70,11 @@ export class Install extends Command {
     installDir.cleanup();
   }
 
-  installDependencies(_argv: Arguments, task: Task): Promise<void> {
+  installDependencies(_argv: Arguments): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = this.spawn("npm", ["install"], {stdio: "inherit"});
       child.on("exit", (code, status) => {
         if (code === 0) {
-          task.complete();
           resolve();
         } else {
           reject(
@@ -135,7 +118,7 @@ export class Install extends Command {
     const message = await get({url: requestUrl, json: true});
     if (message.response.statusCode !== 200) {
       throw new Error(
-        `Could not retrieve package data for ${name}@${version}: error ${message.response.statusCode}`
+        `Could not retrieve package data for ${name}@${version}: ${getAtomioErrorMessage(message)}`
       );
     }
 
@@ -221,12 +204,12 @@ export class Install extends Command {
     if (versionIndex < 0) {
       return {name: uri, version: undefined};
     }
-
-    const version = semver.parse(uri.slice(versionIndex + 1));
+    const versionString = uri.slice(versionIndex + 1);
+    const version = semver.parse(versionString);
     const name = uri.slice(0, versionIndex);
 
     if (!version) {
-      throw new Error("Invalid version specifier");
+      throw new Error(`Invalid version '${versionString}'`);
     }
 
     return {name, version};
@@ -253,22 +236,19 @@ export class Install extends Command {
       {
         title: () => "Preparing",
         task: (task, ctx) => {
-          try {
-            const details = this.getPackageNameAndVersion(argv.uri as string);
-            ctx.packageName = details.name;
-            ctx.version = details.version;
-          } catch {
-            throw new Error("Could not parse package name and version");
-          }
-
+          const details = this.getPackageNameAndVersion(argv.uri as string);
+          ctx.packageName = details.name;
+          ctx.version = details.version;
           task.disable();
         },
       },
       {
         title: () => "Installing dependencies",
         enabled: ctx => !ctx.packageName || ctx.packageName === ".",
-        task: task => {
-          return this.installDependencies(argv, task);
+        staticWait: () => true,
+        task: async (task) => {
+          await this.installDependencies(argv);
+          task.finalComplete();
         },
       },
       {
@@ -306,7 +286,7 @@ export class Install extends Command {
         },
       },
       {
-        title: () => `Getting package URL`,
+        title: () => "Getting package URL",
         task: async (task, ctx) => {
           try {
             ctx.tarball = await this.getPackageTarball(ctx.packageName, ctx.version);
