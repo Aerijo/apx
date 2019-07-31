@@ -317,7 +317,7 @@ function versionsMatch(metadata: any, atomVersion: string | SemVer): boolean {
   return (
     !metadata.engines ||
     !metadata.engines.atom ||
-    semver.satisfies(atomVersion, metadata.engines.atom)
+    semver.satisfies(atomVersion, metadata.engines.atom, {includePrerelease: true})
   );
 }
 
