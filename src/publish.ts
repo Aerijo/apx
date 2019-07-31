@@ -230,6 +230,13 @@ export class Publish extends Command {
   handler(argv: Arguments) {
     const tasks = new TaskManager([
       {
+        title: () => "Inspecting repo state",
+        task: task => {
+          // TODO: Verify commits pushed, on master branch, no apx-bundled tars
+          task.complete();
+        },
+      },
+      {
         title: () => "Bumping package version",
         staticWait: () => true,
         task: async (task, ctx) => {

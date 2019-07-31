@@ -150,7 +150,7 @@ export interface TaskManagerOptions {
 
 class SymbolProvider {
   wait() {
-    return chalk.yellow("›");
+    return chalk.yellow("❯");
   }
 
   skip() {

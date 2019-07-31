@@ -13,10 +13,13 @@ export function getMetadata(packageDir: string): Promise<any> {
   });
 }
 
-export function getGithubOwnerRepo(metadata: any): {owner: string; repo: string} {
-  let repoUrl = metadata.repository;
-  if (repoUrl && metadata.repository.url) {
-    repoUrl = metadata.repository.url;
+export function getGithubOwnerRepo(repoUrl: any): {owner: string; repo: string} {
+  if (typeof repoUrl !== "string") {
+    const metadata = repoUrl;
+    repoUrl = metadata.repository;
+    if (repoUrl && metadata.repository.url) {
+      repoUrl = metadata.repository.url;
+    }
   }
 
   if (typeof repoUrl !== "string") {

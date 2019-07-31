@@ -2,38 +2,42 @@ import * as fs from "fs";
 import * as path from "path";
 import {Arguments} from "yargs";
 import * as semver from "semver";
+import * as rimraf from "rimraf";
 import * as tmp from "tmp-promise";
 tmp.setGracefulCleanup();
 import {promisify} from "util";
 import {Context} from "./context";
 import {get, getGithubGraphql} from "./request";
-import {getGithubOwnerRepo} from "./package";
+import {getGithubOwnerRepo, getMetadata} from "./package";
 import {Command} from "./command";
 import {TaskManager, Task} from "./tasks";
+import {SemVer} from "semver";
+
+interface PackageLoc {
+  version: string;
+  tarball: string;
+  repository: string;
+}
 
 export class Install extends Command {
   constructor(context: Context) {
     super(context);
   }
 
-  createAtomDirectories() {
-    this.tryMakeDir(this.context.getAtomDirectory());
-    this.tryMakeDir(this.context.getAtomPackagesDirectory());
-    this.tryMakeDir(this.context.getAtomNodeDirectory());
+  async createAtomDirectories(): Promise<void> {
+    await Promise.all([
+      this.createDir(this.context.getAtomDirectory()),
+      this.createDir(this.context.getAtomPackagesDirectory()),
+      this.createDir(this.context.getAtomNodeDirectory()),
+    ]);
   }
 
   getInstallPromise(tarballUrl: string, dir: string): Promise<number> {
     return new Promise((resolve, reject) => {
-      const child = this.spawn(
-        "npm",
-        ["install", "--global-style", "--loglevel=error", tarballUrl],
-        {
-          cwd: dir,
-          stdio: "inherit",
-        }
-      );
-
-      child.on("exit", (code, status) => {
+      this.spawn("npm", ["install", "--global-style", "--loglevel=error", tarballUrl], {
+        cwd: dir,
+        stdio: "inherit",
+      }).on("exit", (code, status) => {
         reject({code, status});
         if (code !== 0) {
           reject({code, status});
@@ -53,7 +57,6 @@ export class Install extends Command {
       });
 
       child.on("exit", (code, status) => {
-        // reject(`Install failed with code ${code} and status ${status}`);
         if (code !== 0) {
           reject(`Install failed with code ${code} and status ${status}`);
         } else {
@@ -64,7 +67,10 @@ export class Install extends Command {
     return installDir;
   }
 
-  async movePackageAndCleanup(installDir: tmp.DirectoryResult): Promise<void> {
+  async movePackageAndCleanup(
+    installDir: tmp.DirectoryResult,
+    replaceExisting: boolean
+  ): Promise<void> {
     const modulesDir = path.join(installDir.path, "node_modules");
     const contents = (await promisify(fs.readdir)(modulesDir)).filter(n => n !== ".bin");
     if (contents.length !== 1) {
@@ -73,6 +79,9 @@ export class Install extends Command {
     const name = contents[0];
     const source = path.join(modulesDir, name);
     const dest = path.join(this.context.getAtomPackagesDirectory(), name);
+    if (replaceExisting) {
+      await promisify(rimraf)(dest);
+    }
     await promisify(fs.rename)(source, dest);
     installDir.cleanup();
   }
@@ -82,11 +91,12 @@ export class Install extends Command {
       const child = this.spawn("npm", ["install"], {stdio: "inherit"});
       child.on("exit", (code, status) => {
         if (code === 0) {
-          task.title = "Installed dependencies";
+          task.complete();
           resolve();
         } else {
-          task.title = `Installing dependencies failed with code ${code} and status ${status}`;
-          reject();
+          reject(
+            new Error(`Installing dependencies failed with code ${code} and status ${status}`)
+          );
         }
       });
     });
@@ -120,7 +130,23 @@ export class Install extends Command {
     }
   }
 
-  async getPackageTarball(name: string, version: string | undefined): Promise<string> {
+  async getTarballForSpecificPackageVersion(name: string, version: SemVer): Promise<PackageLoc> {
+    const requestUrl = `${this.context.getAtomPackagesUrl()}/${name}/versions/${version.format()}`;
+    const message = await get({url: requestUrl, json: true});
+    if (message.response.statusCode !== 200) {
+      throw new Error(
+        `Could not retrieve package data for ${name}@${version}: error ${message.response.statusCode}`
+      );
+    }
+
+    return {
+      version: version.format(),
+      tarball: message.body.dist.tarball,
+      repository: getMetadataRepository(message.body),
+    };
+  }
+
+  async getLatestCompatiblePackage(name: string): Promise<PackageLoc> {
     const requestUrl = `${this.context.getAtomPackagesUrl()}/${name}`;
     const message = (await get({url: requestUrl, json: true})).body;
 
@@ -128,102 +154,176 @@ export class Install extends Command {
       throw new Error(`Could not retrieve package data for ${name}`);
     }
 
-    if (!version) {
-      version = message.releases.latest as string;
-      if (!version) {
-        throw new Error("Could not detect version");
+    if (!message.versions || Object.entries(message.versions).length === 0) {
+      throw new Error("No releases for package");
+    }
+
+    if (!message.releases || !message.releases.latest) {
+      throw new Error("Could not detect latest package version");
+    }
+
+    const atomVersion = this.context.getAtomVersion();
+    const latest = message.releases.latest as string;
+    const latestMeta = message.versions[latest];
+
+    if (versionsMatch(latestMeta, atomVersion)) {
+      return {
+        version: latest,
+        tarball: latestMeta.dist.tarball,
+        repository: getMetadataRepository(latestMeta),
+      };
+    }
+
+    const sortedVersions = Object.entries(message.versions)
+      .map(([key, metadata]: [string, any]) => {
+        const version = semver.parse(key);
+        if (!version || !versionsMatch(metadata, atomVersion)) {
+          return undefined;
+        }
+        return {
+          version,
+          tarball: metadata.dist.tarball,
+          repository: getMetadataRepository(latestMeta),
+        };
+      })
+      .filter((v): v is any => !!v)
+      .sort((a, b) => semver.rcompare(a.version, b.version));
+
+    if (sortedVersions.length === 0) {
+      throw new Error("No compatible versions detected");
+    }
+
+    return sortedVersions[0];
+  }
+
+  async getPackageTarball(
+    name: string,
+    targetVersion: SemVer | undefined,
+    github: boolean = true
+  ): Promise<string> {
+    const {version, tarball, repository} = targetVersion
+      ? await this.getTarballForSpecificPackageVersion(name, targetVersion)
+      : await this.getLatestCompatiblePackage(name);
+
+    if (github) {
+      const {owner, repo} = getGithubOwnerRepo(repository);
+      const githubTarball = await this.getGithubRelease(owner, repo, name, version);
+      if (githubTarball) {
+        return githubTarball;
       }
     }
 
-    const release = message.versions[version];
-
-    if (!release) {
-      throw new Error(`Could not retrieve version ${version} of package ${name}`);
-    }
-
-    const {owner, repo} = getGithubOwnerRepo(release);
-
-    const githubTarball = await this.getGithubRelease(owner, repo, "apx-test", version);
-
-    return githubTarball || release.dist.tarball;
+    return tarball;
   }
 
-  getPackageNameAndVersion(uri: string): {name: string; version: string | undefined} {
+  getPackageNameAndVersion(uri: string): {name: string; version: SemVer | undefined} {
     const versionIndex = uri.indexOf("@");
     if (versionIndex < 0) {
       return {name: uri, version: undefined};
     }
 
-    const version = uri.slice(versionIndex + 1);
+    const version = semver.parse(uri.slice(versionIndex + 1));
     const name = uri.slice(0, versionIndex);
 
-    if (!semver.valid(version)) {
+    if (!version) {
       throw new Error("Invalid version specifier");
     }
 
     return {name, version};
   }
 
+  packageExists(packagePath: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      fs.access(packagePath, err => {
+        if (err) {
+          if (err.code === "ENOENT") {
+            resolve(false);
+          } else {
+            reject(err);
+          }
+        } else {
+          resolve(true);
+        }
+      });
+    });
+  }
+
   handler(argv: Arguments) {
-    let packageName: string;
-    let version: string | undefined;
-
-    let tarball = "";
-
     const tasks = new TaskManager([
       {
         title: () => "Preparing",
         task: (task, ctx) => {
           try {
             const details = this.getPackageNameAndVersion(argv.uri as string);
-            packageName = details.name;
-            version = details.version;
+            ctx.packageName = details.name;
+            ctx.version = details.version;
           } catch {
-            task.error("Could not parse package name and version");
-            return;
-          }
-
-          if (!packageName || packageName === ".") {
-            task.setTitle("Installing dependencies");
-            return this.installDependencies(argv, task);
+            throw new Error("Could not parse package name and version");
           }
 
           task.disable();
         },
       },
       {
-        title: () => `Checking if ${packageName} is installed`,
-        task: (task, ctx) => {
-          this.createAtomDirectories();
-          fs.access(path.join(this.context.getAtomPackagesDirectory(), packageName), err => {
-            if (!err || err.code !== "ENOENT") {
-              task.error(`Package ${packageName} already installed`);
-              return;
-            }
+        title: () => "Installing dependencies",
+        enabled: ctx => !ctx.packageName || ctx.packageName === ".",
+        task: task => {
+          return this.installDependencies(argv, task);
+        },
+      },
+      {
+        title: ctx => `Checking if ${ctx.packageName} is installed`,
+        task: async (task, ctx) => {
+          await this.createAtomDirectories();
+          const packageDir = path.join(this.context.getAtomPackagesDirectory(), ctx.packageName);
 
+          if (!(await this.packageExists(packageDir))) {
             task.complete();
-          });
+            return;
+          }
+
+          const noInstall = `Package ${ctx.packageName} already installed`;
+          if (!ctx.version) {
+            throw new Error(noInstall);
+          }
+
+          const metadata = await getMetadata(packageDir);
+          const existingVersion = metadata.version && semver.parse(metadata.version);
+          if (!existingVersion) {
+            throw new Error("Could not detect installed version");
+          }
+
+          if (semver.neq(existingVersion, ctx.version)) {
+            ctx.replaceExisting = true;
+            task.complete(
+              `Version ${existingVersion} will be ${
+                semver.lt(existingVersion, ctx.version) ? "up" : "down"
+              }graded to ${ctx.version}`
+            );
+          } else {
+            throw new Error(`Version ${existingVersion} is already installed`);
+          }
         },
       },
       {
         title: () => `Getting package URL`,
         task: async (task, ctx) => {
           try {
-            tarball = await this.getPackageTarball(packageName, version);
-            task.complete(tarball);
+            ctx.tarball = await this.getPackageTarball(ctx.packageName, ctx.version);
+            task.complete(ctx.tarball);
           } catch (e) {
             task.error(e.message);
           }
         },
       },
       {
-        title: () => `Installing ${packageName} for Atom ${this.context.getAtomVersion()}`,
+        title: ctx => `Installing ${ctx.packageName} for Atom ${this.context.getAtomVersion()}`,
         staticWait: () => true,
         task: async (task, ctx) => {
           task.update("Downloading package");
-          const downloadTemp = await this.downloadFromUrl(tarball);
+          const downloadTemp = await this.downloadFromUrl(ctx.tarball);
           task.update("Moving download to packages folder");
-          await this.movePackageAndCleanup(downloadTemp);
+          await this.movePackageAndCleanup(downloadTemp, ctx.replaceExisting);
           task.complete();
         },
       },
@@ -231,4 +331,25 @@ export class Install extends Command {
 
     tasks.run();
   }
+}
+
+function versionsMatch(metadata: any, atomVersion: string | SemVer): boolean {
+  return (
+    !metadata.engines ||
+    !metadata.engines.atom ||
+    semver.satisfies(atomVersion, metadata.engines.atom)
+  );
+}
+
+function getMetadataRepository(metadata: any): string {
+  let repoUrl = metadata.repository;
+  if (repoUrl && metadata.repository.url) {
+    repoUrl = metadata.repository.url;
+  }
+
+  if (typeof repoUrl !== "string") {
+    throw new Error("Expected repository URL");
+  }
+
+  return repoUrl;
 }

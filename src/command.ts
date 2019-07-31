@@ -117,4 +117,16 @@ export class Command {
       }
     }
   }
+
+  createDir(dir: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      fs.mkdir(dir, err => {
+        if (err && err.code !== "EEXIST") {
+          reject(new Error(`Could not create required directory ${dir}`));
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
 }
