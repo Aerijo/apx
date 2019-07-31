@@ -246,7 +246,7 @@ export class Install extends Command {
         title: () => "Installing dependencies",
         enabled: ctx => !ctx.packageName || ctx.packageName === ".",
         staticWait: () => true,
-        task: async (task) => {
+        task: async task => {
           await this.installDependencies(argv);
           task.finalComplete();
         },
