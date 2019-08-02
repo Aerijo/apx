@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import {Context} from "./context";
 import {spawn, ChildProcessWithoutNullStreams} from "child_process";
 
@@ -120,13 +121,17 @@ export class Command {
 
   createDir(dir: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      fs.mkdir(dir, err => {
+      fs.mkdir(dir, {recursive: true}, err => {
         if (err && err.code !== "EEXIST") {
-          reject(new Error(`Could not create required directory ${dir}`));
+          reject(new Error(`Could not create required directory ${dir}: ${err}`));
         } else {
           resolve();
         }
       });
     });
+  }
+
+  getShortPath(dir: string): string {
+    return dir.startsWith(os.homedir()) ? `~` + dir.slice(os.homedir().length) : dir;
   }
 }

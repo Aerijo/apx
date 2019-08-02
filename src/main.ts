@@ -1,4 +1,5 @@
 import * as yargs from "yargs";
+import {Arguments} from "yargs";
 yargs.wrap(Math.min(140, yargs.terminalWidth()));
 
 import {Context, getTargetFromString} from "./context";
@@ -6,10 +7,7 @@ import {Install} from "./install";
 import {Uninstall} from "./uninstall";
 import {Publish} from "./publish";
 import {Doctor} from "./doctor";
-
-// Allow 'require' on ASAR archived files
-// import "asar-require";
-import {Arguments} from "yargs";
+import {Link} from "./link";
 
 function getArguments(context: Context) {
   return yargs
@@ -71,7 +69,7 @@ function getArguments(context: Context) {
       },
       handler(argv) {
         const install = new Install(context);
-        return install.handler(argv);
+        install.handler(argv);
       },
     })
     .command({
@@ -85,7 +83,7 @@ function getArguments(context: Context) {
       },
       handler(argv) {
         const uninstall = new Uninstall(context);
-        return uninstall.handler(argv);
+        uninstall.handler(argv);
       },
     })
     .command({
@@ -112,11 +110,68 @@ function getArguments(context: Context) {
       },
     })
     .command({
+      command: "link [path]",
+      describe: "Link the package to Atom's package directory",
+      builder() {
+        return yargs
+          .positional("path", {
+            describe:
+              "Path to package that will be linked. Leave blank to link the package in the cwd",
+            type: "string",
+            default: ".",
+          })
+          .option("name", {
+            describe: "Alias to be used for package",
+            type: "string",
+          })
+          .option("dev", {
+            describe: "Link to the dev folder instead",
+            type: "boolean",
+            default: false,
+          });
+      },
+      handler(argv) {
+        const linker = new Link(context);
+        linker.link(argv);
+      },
+    })
+    .command({
+      command: "unlink [name]",
+      describe: "Unlink the package from Atom's package directory",
+      builder() {
+        return yargs
+          .positional("name", {
+            describe:
+              "Name of package to unlink. Leave blank to unlink all packages that resolve to the current cwd",
+            type: "string",
+          })
+          .option("dev", {
+            describe: "Apply operations to the dev package folder instead",
+            type: "boolean",
+            default: false,
+          })
+          .option("hard", {
+            describe: "Apply operations to both the stable and dev package folders",
+            type: "boolean",
+            default: false,
+          })
+          .option("all", {
+            describe: "Unlink all symlinks in the package folder",
+            type: "boolean",
+            default: false,
+          });
+      },
+      handler(argv) {
+        const linker = new Link(context);
+        linker.unlink(argv);
+      },
+    })
+    .command({
       command: "doctor",
       describe: "Verify that your installation is working correctly",
       handler(argv) {
         const doctor = new Doctor(context);
-        return doctor.handler(argv);
+        doctor.handler(argv);
       },
     })
     .command({

@@ -36,7 +36,6 @@
     "rimraf": "^2.6.3",
     "semver": "^6.2.0",
     "tmp-promise": "^2.0.2",
-    "validate-npm-package-name": "^3.0.0",
     "yargs": "^13.2.4"
   },
   "devDependencies": {
