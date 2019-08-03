@@ -61,15 +61,44 @@ export class Link extends Command {
     });
   }
 
-  unlink(argv: Arguments) {
-    if (argv.hard) {
-      throw new Error("Not yet implemented");
-    }
+  getSymlinksForDir(searchDir: string): Promise<fs.Dirent[]> {
+    return promisify(fs.readdir)(searchDir, {withFileTypes: true}).then(items =>
+      items.filter(item => item.isSymbolicLink())
+    );
+  }
 
+  async unlinkByName(searchDir: string, name: string): Promise<string | undefined> {
+    try {
+      const symlinkPath = path.join(searchDir, name);
+      await promisify(fs.unlink)(symlinkPath);
+      return symlinkPath;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async unlinkByTarget(searchDir: string, target: string): Promise<string[]> {
+    const symlinks = await this.getSymlinksForDir(searchDir);
+    const removedLinks = (await Promise.all(
+      symlinks.map(async link => {
+        const source = path.join(searchDir, link.name);
+        if ((await promisify(fs.readlink)(source)) !== target) {
+          return undefined;
+        }
+        await promisify(fs.unlink)(source);
+        return source;
+      })
+    )).filter(source => source) as string[];
+
+    return removedLinks;
+  }
+
+  unlink(argv: Arguments) {
     const taskParams: TaskParams[] = [];
     const context: TaskContext = {
       dev: argv.dev as boolean,
       all: argv.all as boolean,
+      hard: argv.hard as boolean,
     };
 
     if (context.all) {
@@ -83,38 +112,44 @@ export class Link extends Command {
       context.name = argv.name;
       taskParams.push({
         title: ctx =>
-          `Unlinking ${ctx.name} from ${this.context.getAtomPackagesDirectory(ctx.dev)}`,
+          `Unlinking ${ctx.name} from ${this.context.getAtomPackagesDirectory(ctx.dev)}${
+            ctx.hard ? ` and ${this.context.getAtomPackagesDirectory(!ctx.dev)}` : ""
+          }`,
         task: async (task, ctx) => {
+          const searchDirs = [this.context.getAtomPackagesDirectory(ctx.dev)];
+          if (ctx.hard) {
+            searchDirs.push(this.context.getAtomPackagesDirectory(!ctx.dev));
+          }
+
+          await Promise.all(searchDirs.map(dir => this.unlinkByName(dir, ctx.name)));
+
           const symlinkPath = path.join(this.context.getAtomPackagesDirectory(ctx.dev), ctx.name);
-          await promisify(fs.unlink)(symlinkPath);
+
           task.complete();
         },
       });
     } else {
       context.target = process.cwd();
       taskParams.push({
-        title: ctx =>
-          `Unlinking references to ${this.getShortPath(ctx.target)} from ${this.getShortPath(
-            this.context.getAtomPackagesDirectory(ctx.dev)
-          )}`,
+        title: ctx => {
+          const shortTarget = this.getShortPath(ctx.target);
+          return ctx.hard
+            ? `Unlinking all references to ${shortTarget}`
+            : `Unlinking references to ${shortTarget} from ${this.getShortPath(
+                this.context.getAtomPackagesDirectory(ctx.dev)
+              )}`;
+        },
         task: async (task, ctx) => {
-          const searchDir = this.context.getAtomPackagesDirectory(ctx.dev);
-          const symlinks = (await promisify(fs.readdir)(searchDir, {withFileTypes: true})).filter(
-            item => item.isSymbolicLink()
+          const searchDirs: string[] = [this.context.getAtomPackagesDirectory(ctx.dev)];
+
+          if (ctx.hard) {
+            searchDirs.push(this.context.getAtomPackagesDirectory(!ctx.dev));
+          }
+
+          const results = await Promise.all(
+            searchDirs.map(searchDir => this.unlinkByTarget(searchDir, ctx.target))
           );
-
-          const removedLinks = (await Promise.all(
-            symlinks.map(async link => {
-              const source = path.join(searchDir, link.name);
-              const target = await promisify(fs.readlink)(source);
-              if (target !== ctx.target) {
-                return undefined;
-              }
-              await promisify(fs.unlink)(source);
-              return source;
-            })
-          )).filter(source => source);
-
+          const removedLinks = results.reduce((a, v) => a.concat(v));
           if (removedLinks.length === 0) {
             task.nonFatalError("No symlinks detected");
           } else {
