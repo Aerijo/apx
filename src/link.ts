@@ -61,9 +61,19 @@ export class Link extends Command {
     });
   }
 
-  getSymlinksForDir(searchDir: string): Promise<fs.Dirent[]> {
-    return promisify(fs.readdir)(searchDir, {withFileTypes: true}).then(items =>
-      items.filter(item => item.isSymbolicLink())
+  async getSymlinksForDir(searchDir: string): Promise<fs.Dirent[]> {
+    const items = await promisify(fs.readdir)(searchDir, {withFileTypes: true});
+    return items.filter(item => item.isSymbolicLink());
+  }
+
+  async unlinkAll(searchDir: string): Promise<string[]> {
+    const symlinks = await this.getSymlinksForDir(searchDir);
+    return Promise.all(
+      symlinks.map(async link => {
+        const source = path.join(searchDir, link.name);
+        await promisify(fs.unlink)(source);
+        return source;
+      })
     );
   }
 
@@ -103,9 +113,25 @@ export class Link extends Command {
 
     if (context.all) {
       taskParams.push({
-        title: () => `Unlinking all symlinks`,
-        task: task => {
-          task.error("Not yet implemented");
+        title: ctx =>
+          ctx.hard
+            ? "Unlinking all symlinks"
+            : `Unlinking all symlinks in ${this.getShortPath(
+                this.context.getAtomPackagesDirectory(ctx.dev)
+              )}`,
+        task: async (task, ctx) => {
+          const searchDirs = [this.context.getAtomPackagesDirectory(ctx.dev)];
+          if (ctx.hard) {
+            searchDirs.push(this.context.getAtomPackagesDirectory(!ctx.dev));
+          }
+          const removed = (await Promise.all(searchDirs.map(dir => this.unlinkAll(dir)))).reduce(
+            (a, v) => a.concat(v)
+          );
+          task.complete(
+            `Removed ${
+              removed.length === 1 ? this.getShortPath(removed[0]) : `${removed.length} symlinks`
+            }`
+          );
         },
       });
     } else if (argv.name) {
@@ -120,11 +146,7 @@ export class Link extends Command {
           if (ctx.hard) {
             searchDirs.push(this.context.getAtomPackagesDirectory(!ctx.dev));
           }
-
           await Promise.all(searchDirs.map(dir => this.unlinkByName(dir, ctx.name)));
-
-          const symlinkPath = path.join(this.context.getAtomPackagesDirectory(ctx.dev), ctx.name);
-
           task.complete();
         },
       });
@@ -141,7 +163,6 @@ export class Link extends Command {
         },
         task: async (task, ctx) => {
           const searchDirs: string[] = [this.context.getAtomPackagesDirectory(ctx.dev)];
-
           if (ctx.hard) {
             searchDirs.push(this.context.getAtomPackagesDirectory(!ctx.dev));
           }

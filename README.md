@@ -6,8 +6,8 @@ Features:
 - [X] install; install package from atom.io. Look for `apx-bundle-<version>.tar.gz` over source code.
 - [X] uninstall; uninstall package (fail on symlink)
 - [X] publish; register package version to atom.io & upload assets to GitHub
-- [ ] link; symlink to packages
-- [ ] unlink; remove symlink
+- [X] link; symlink to packages
+- [X] unlink; remove symlink
 - [ ] info <package>; log package details
 
 # Installation
