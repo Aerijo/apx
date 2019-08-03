@@ -90,6 +90,9 @@ export class Task {
     this.events.emit("complete", message);
   }
 
+  /**
+   * Same as 'complete', but prevents any further tasks from running.
+   */
   finalComplete(message?: string) {
     this.events.emit("final", message);
   }

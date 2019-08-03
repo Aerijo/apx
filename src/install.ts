@@ -10,7 +10,7 @@ import {Context} from "./context";
 import {get, getGithubGraphql, getAtomioErrorMessage} from "./request";
 import {getGithubOwnerRepo, getMetadata} from "./package";
 import {Command} from "./command";
-import {TaskManager, Task} from "./tasks";
+import {TaskManager} from "./tasks";
 import {SemVer} from "semver";
 
 interface PackageLoc {

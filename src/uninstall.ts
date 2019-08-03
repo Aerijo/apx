@@ -4,7 +4,6 @@ import * as fs from "fs";
 import * as path from "path";
 import {getMetadata} from "./package";
 import * as rimraf from "rimraf";
-import * as child_process from "child_process";
 import {Command} from "./command";
 import {TaskManager} from "./tasks";
 import {promisify} from "util";
@@ -16,15 +15,27 @@ export class Uninstall extends Command {
 
   runScript(name: string, scripts: any, cwd: string): Promise<void> {
     if (typeof scripts[name] === "string") {
-      console.log(
-        child_process.spawnSync("npm", ["run", name], {
-          encoding: "utf8",
-          env: this.context.getElectronEnv(),
-          cwd,
-        }).stdout
-      );
+      return new Promise((resolve, reject) => {
+        const child = this.spawn(
+          "npm",
+          ["run", name],
+          {
+            cwd,
+            stdio: "inherit",
+          },
+          {reject}
+        );
+        child.on("exit", err => {
+          if (err) {
+            reject(new Error(`Process exited with code ${err}`));
+          } else {
+            resolve();
+          }
+        });
+      });
+    } else {
+      return Promise.resolve();
     }
-    return Promise.resolve();
   }
 
   handler(argv: Arguments) {
@@ -40,18 +51,12 @@ export class Uninstall extends Command {
           const packageNames = await promisify(fs.readdir)(packagesDir);
 
           if (packageNames.indexOf(packageName) < 0) {
-            task.setTitle(`Package ${packageName} not installed`);
-            throw new Error();
+            throw new Error(`Package ${packageName} not installed`);
           }
 
           ctx.packageDir = path.join(packagesDir, packageName);
-          try {
-            const metadata = await getMetadata(ctx.packageDir);
-            ctx.scripts = metadata.scripts;
-          } catch (e) {
-            task.error(e.message);
-            return;
-          }
+          const metadata = await getMetadata(ctx.packageDir);
+          ctx.scripts = metadata.scripts;
           if (typeof ctx.scripts === "object" && hasUninstallScript(ctx.scripts)) {
             runUninstallScript = true;
           }
@@ -61,9 +66,8 @@ export class Uninstall extends Command {
       },
       {
         title: () => "Running uninstall scripts",
-        skip: () => {
-          return !runUninstallScript ? "No uninstall scripts" : false;
-        },
+        skip: () => (runUninstallScript ? false : "No uninstall scripts"),
+        staticWait: () => true,
         task: async (task, ctx) => {
           await this.runScript("uninstall", ctx.scripts, ctx.packageDir); // also runs pre & post
           task.complete();
