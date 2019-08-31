@@ -7,11 +7,12 @@ import * as tmp from "tmp-promise";
 tmp.setGracefulCleanup();
 import {promisify} from "util";
 import {Context} from "./context";
-import {get, getGithubGraphql, getAtomioErrorMessage} from "./request";
-import {getGithubOwnerRepo, getMetadata} from "./package";
+import {get, getAtomioErrorMessage} from "./request";
+import {getMetadata} from "./package";
 import {Command} from "./command";
-import {TaskManager} from "./tasks";
+import {TaskManager, TaskContext} from "./tasks";
 import {SemVer} from "semver";
+import {getOwnerRepo, getGithubRelease} from "./github";
 
 interface PackageLoc {
   version: string;
@@ -83,34 +84,6 @@ export class Install extends Command {
         }
       });
     });
-  }
-
-  // TODO: Support for builds split by OS & Electron version
-  async getGithubRelease(
-    owner: string,
-    repo: string,
-    name: string,
-    version: string
-  ): Promise<string | undefined> {
-    const query = `{
-      repository(owner:"${owner}", name:"${repo}") {
-        release(tagName:"v${version}") {
-          releaseAssets(name:"apx-bundled-${name}-${version}.tgz" first:1) {
-            nodes {
-              downloadUrl
-            }
-          }
-        }
-      }
-    }`;
-
-    try {
-      const data = await getGithubGraphql(query);
-      const assets = data.repository.release.releaseAssets.nodes;
-      return assets.length === 1 ? assets[0].downloadUrl : undefined;
-    } catch (e) {
-      return undefined;
-    }
   }
 
   async getTarballForSpecificPackageVersion(name: string, version: SemVer): Promise<PackageLoc> {
@@ -189,8 +162,8 @@ export class Install extends Command {
       : await this.getLatestCompatiblePackage(name);
 
     if (github) {
-      const {owner, repo} = getGithubOwnerRepo(repository);
-      const githubTarball = await this.getGithubRelease(owner, repo, name, version);
+      const {owner, repo} = getOwnerRepo(repository);
+      const githubTarball = await getGithubRelease({owner, repo, name, version});
       if (githubTarball) {
         return githubTarball;
       }
@@ -229,16 +202,13 @@ export class Install extends Command {
   }
 
   handler(argv: Arguments) {
+    const details = this.getPackageNameAndVersion(argv.uri as string);
+    const context: TaskContext = {
+      packageName: details.name,
+      version: details.version,
+    };
+
     const tasks = new TaskManager([
-      {
-        title: () => "Preparing",
-        task: (task, ctx) => {
-          const details = this.getPackageNameAndVersion(argv.uri as string);
-          ctx.packageName = details.name;
-          ctx.version = details.version;
-          task.disable();
-        },
-      },
       {
         title: () => "Installing dependencies",
         enabled: ctx => !ctx.packageName || ctx.packageName === ".",
@@ -285,6 +255,13 @@ export class Install extends Command {
       },
       {
         title: () => "Getting package URL",
+        skip: ctx => {
+          if (ctx.packageName.startsWith("github:")) {
+            ctx.tarball = ctx.packageName.slice("github:".length);
+            return "GitHub repo specified";
+          }
+          return false;
+        },
         task: async (task, ctx) => {
           try {
             ctx.tarball = await this.getPackageTarball(ctx.packageName, ctx.version);
@@ -307,7 +284,7 @@ export class Install extends Command {
       },
     ]);
 
-    tasks.run();
+    tasks.run(context);
   }
 }
 

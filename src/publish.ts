@@ -3,11 +3,12 @@ import {Arguments} from "yargs";
 import * as fs from "fs";
 import * as path from "path";
 import {Context} from "./context";
-import {getGithubOwnerRepo, getMetadata} from "./package";
-import {post, getAtomioErrorMessage, getGithubGraphql, RequestResult, uploadAsset} from "./request";
-import {getToken, getGithubRestToken} from "./auth";
+import {getMetadata} from "./package";
+import {post, getAtomioErrorMessage, RequestResult} from "./request";
+import {getToken, Token} from "./auth";
 import {Command} from "./command";
 import {TaskManager} from "./tasks";
+import {getOwnerRepo, queryGraphql, uploadAsset} from "./github";
 
 export class Publish extends Command {
   cwd: string;
@@ -18,9 +19,9 @@ export class Publish extends Command {
   }
 
   async registerPackage(metadata: any): Promise<string> {
-    const {owner, repo} = getGithubOwnerRepo(metadata);
+    const {owner, repo} = getOwnerRepo(metadata);
     const repository = `${owner}/${repo}`;
-    const token = await getToken();
+    const token = await getToken(Token.ATOMIO);
     const result = await post({
       url: this.context.getAtomPackagesUrl(),
       json: true,
@@ -80,13 +81,14 @@ export class Publish extends Command {
     });
   }
 
+  // TODO: relocate to ./github.ts
   async awaitGitHubTag(
     tag: string,
     attempts: number,
     attemptCounter: (attempt: number) => void
   ): Promise<boolean> {
     const metadata = await getMetadata(this.cwd);
-    const {owner, repo} = getGithubOwnerRepo(metadata);
+    const {owner, repo} = getOwnerRepo(metadata);
     const query = `{
       repository(owner:"${owner}" name:"${repo}") {
         refs(refPrefix:"refs/tags/", first:1, orderBy:{field: TAG_COMMIT_DATE, direction: DESC}) {
@@ -96,11 +98,12 @@ export class Publish extends Command {
         }
       }
     }`;
+    const authtoken = await getToken(Token.GITHUB);
 
     // TODO: Actually might not be latest tag. Should check all of them.
     for (let i = 0; i < attempts; i++) {
       attemptCounter(i);
-      const data = await getGithubGraphql(query);
+      const data = await queryGraphql(query, authtoken!);
       try {
         const latestTag = data.repository.refs.nodes[0].name;
         if (latestTag === tag) {
@@ -117,7 +120,7 @@ export class Publish extends Command {
   async publishVersion(tag: string): Promise<void> {
     const metadata = await getMetadata(this.cwd);
     const name = metadata.name;
-    const token = await getToken();
+    const token = await getToken(Token.ATOMIO);
     const result = await post({
       url: `${this.context.getAtomPackagesUrl()}/${name}/versions`,
       json: true,
@@ -140,8 +143,8 @@ export class Publish extends Command {
   }
 
   async createRelease(tag: string): Promise<RequestResult> {
-    const [metadata, token] = await Promise.all([getMetadata(this.cwd), getGithubRestToken()]);
-    const {owner, repo} = getGithubOwnerRepo(metadata);
+    const [metadata, token] = await Promise.all([getMetadata(this.cwd), getToken(Token.GITHUB)]);
+    const {owner, repo} = getOwnerRepo(metadata);
 
     const result = await post({
       url: `${this.context.getGithubApiUrl()}/repos/${owner}/${repo}/releases`,

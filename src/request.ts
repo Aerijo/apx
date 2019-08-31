@@ -1,8 +1,5 @@
 import * as child_process from "child_process";
 import * as request from "request";
-import {GraphQLClient} from "graphql-request";
-import * as Octokit from "@octokit/rest";
-import {getGithubRestToken} from "./auth";
 
 export type RequestOptions = request.Options;
 export interface RequestResult {
@@ -78,36 +75,4 @@ export function getAtomioErrorMessage(result: RequestResult): string {
     default:
       return `${result.response.statusCode}`;
   }
-}
-
-export async function getGithubGraphql(query: string): Promise<any> {
-  const token = await getGithubRestToken();
-  const graphQLClient = new GraphQLClient("https://api.github.com/graphql", {
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-  return graphQLClient.request(query);
-}
-
-const oct = new Octokit({
-  auth: getGithubRestToken,
-});
-
-export async function uploadAsset(
-  url: string,
-  name: string,
-  type: string,
-  file: string | Buffer
-): Promise<number> {
-  const r = await oct.repos.uploadReleaseAsset({
-    url,
-    headers: {
-      "content-type": type,
-      "content-length": file.length,
-    },
-    name,
-    file,
-  });
-  return r.status;
 }

@@ -1,34 +1,47 @@
 import * as keytar from "keytar";
 
-// Use same token as apm
-const atomTokenName = "Atom.io API Token";
 const account = "atom.io";
 
-export async function getToken(): Promise<string> {
-  if (process.env.ATOM_ACCESS_TOKEN) {
-    return process.env.ATOM_ACCESS_TOKEN;
-  }
-
-  const token = await keytar.findPassword(atomTokenName);
-
-  if (token) {
-    return token;
-  } else {
-    throw new Error("No Atom API token in keychain");
-  }
+export enum Token {
+  ATOMIO,
+  GITHUB,
 }
 
-/**
- * @param  token Value to store
- * @return       Promise that resolves when request is completed
- */
-export function setToken(token: string): Promise<void> {
-  return keytar.setPassword(atomTokenName, account, token);
+const tokenToName = new Map<Token, string>([
+  [Token.ATOMIO, "Atom.io API Token"],
+  [Token.GITHUB, "GitHub API Token"],
+]);
+
+function getTokenName(token: Token): string | undefined {
+  return tokenToName.get(token);
 }
 
-export async function getGithubRestToken(): Promise<string> {
-  if (typeof process.env.GITHUB_AUTH_TOKEN === "string") {
-    return process.env.GITHUB_AUTH_TOKEN;
+export async function getToken(token: Token): Promise<string | undefined> {
+  switch (token) {
+    case Token.ATOMIO:
+      if (process.env.ATOM_ACCESS_TOKEN) {
+        return process.env.ATOM_ACCESS_TOKEN;
+      }
+      break;
+    case Token.GITHUB:
+      if (process.env.GITHUB_AUTH_TOKEN) {
+        return process.env.GITHUB_AUTH_TOKEN;
+      }
+      break;
   }
-  throw new Error("GitHub API token required in environment variable GITHUB_AUTH_TOKEN");
+
+  const name = getTokenName(token);
+  if (!name) {
+    return undefined;
+  }
+  const value = await keytar.findPassword(name);
+  return value !== null ? value : undefined;
+}
+
+export function setToken(token: Token, value: string): Promise<void> {
+  const name = getTokenName(token);
+  if (name === undefined) {
+    throw new Error(`Cannot set unnamed token ID ${token} ${Token[token]}`);
+  }
+  return keytar.setPassword(name, account, value);
 }
