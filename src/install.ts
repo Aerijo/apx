@@ -215,17 +215,14 @@ export class Install extends Command {
     return {name, version};
   }
 
-  packageExists(packagePath: string): Promise<boolean> {
+  packageExists(packagesPath: string, name: string): Promise<boolean> {
+    name = name.toLowerCase();
     return new Promise((resolve, reject) => {
-      fs.access(packagePath, err => {
+      fs.readdir(packagesPath, (err, files) => {
         if (err) {
-          if (err.code === "ENOENT") {
-            resolve(false);
-          } else {
-            reject(err);
-          }
+          reject(err);
         } else {
-          resolve(true);
+          resolve(files.some(f => f.toLowerCase() === name));
         }
       });
     });
@@ -255,9 +252,9 @@ export class Install extends Command {
         title: ctx => `Checking if ${ctx.packageName} is installed`,
         task: async (task, ctx) => {
           await this.createAtomDirectories();
-          const packageDir = path.join(this.context.getAtomPackagesDirectory(), ctx.packageName);
+          const packagesDir = this.context.getAtomPackagesDirectory();
 
-          if (!(await this.packageExists(packageDir))) {
+          if (!(await this.packageExists(packagesDir, ctx.packageName))) {
             task.complete();
             return;
           }
