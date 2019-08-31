@@ -1,6 +1,9 @@
 {
   "author": "Benjamin Gray",
   "main": "./dist/main.js",
+  "bin": {
+    "apx": "./dist/cli.js"
+  },
   "version": "0.13.0",
   "repository": {
     "type": "git",
@@ -10,9 +13,6 @@
     "/dist",
     "/resources"
   ],
-  "bin": {
-    "apx": "./dist/cli.js"
-  },
   "keywords": [],
   "license": "MIT",
   "name": "@aerijo/apx",

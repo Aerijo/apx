@@ -74,10 +74,11 @@ function getOctokit(authtoken?: string): Octokit {
 
 async function getRestReleaseAssetUrl(details: PackDetails): Promise<string | undefined> {
   const {owner, repo, authtoken} = details;
-  const oct = getOctokit(authtoken);
-  const releases = await oct.repos.listReleases({owner, repo});
   const assetName = assetNameFromDetails(details);
   const tag = tagNameFromDetails(details);
+
+  const oct = getOctokit(authtoken);
+  const releases = await oct.repos.listReleases({owner, repo});
   const release = releases.data.find(e => e.tag_name === tag);
 
   if (release === undefined) {
