@@ -253,6 +253,7 @@ export class Install extends Command {
         task: async (task, ctx) => {
           await this.createAtomDirectories();
           const packagesDir = this.context.getAtomPackagesDirectory();
+          const packageDir = path.join(packagesDir, ctx.packageName);
 
           if (!(await this.packageExists(packagesDir, ctx.packageName))) {
             task.complete();
