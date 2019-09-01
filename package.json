@@ -30,6 +30,7 @@
     "asar": "2.0.1",
     "chalk": "^2.4.2",
     "graphql-request": "^1.8.2",
+    "js-levenshtein": "^1.1.6",
     "keytar": "^4.11.0",
     "log-update": "^3.2.0",
     "request": "^2.88.0",
@@ -39,6 +40,7 @@
     "yargs": "^13.2.4"
   },
   "devDependencies": {
+    "@types/js-levenshtein": "^1.1.0",
     "@types/node": "^12.6.1",
     "@types/request": "^2.48.2",
     "@types/rimraf": "^2.0.2",

@@ -33,7 +33,7 @@ apx --version
 - [X] doctor; inspect installation
 - [ ] clean; clean up Atom's config.cson, removing duplicates, uninstalled package settings, etc.
 - [X] install; install package from atom.io. Look for `apx-bundle-<version>.tar.gz` over source code.
-- [X] uninstall; uninstall package (fail on symlink)
+- [X] uninstall; uninstall package (fail on symlink) - if not installed, offer "did you mean"
 - [ ] update; update package to latest or specified version
 - [ ] outdated; list all packages with available updates
 - [X] publish; register package version to atom.io & upload assets to GitHub

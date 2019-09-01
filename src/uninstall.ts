@@ -51,7 +51,12 @@ export class Uninstall extends Command {
           const packageNames = await promisify(fs.readdir)(packagesDir);
 
           if (packageNames.indexOf(packageName) < 0) {
-            throw new Error(`Package ${packageName} not installed`);
+            let message = `Package "${packageName}" not installed`;
+            const closestMatch = await getClosestMatch(packageName, packageNames);
+            if (closestMatch !== undefined) {
+              message = `${message}. Did you mean "${closestMatch}"?`;
+            }
+            throw new Error(message);
           }
 
           ctx.packageDir = path.join(packagesDir, packageName);
@@ -91,4 +96,22 @@ function hasUninstallScript(scripts: any): boolean {
     typeof scripts === "object" &&
     (scripts.preuninstall || scripts.uninstall || scripts.postuninstall)
   );
+}
+
+async function getClosestMatch(name: string, installed: string[]): Promise<string | undefined> {
+  name = name.toLowerCase();
+  const editDist = await import("js-levenshtein");
+
+  let bestName: string | undefined = undefined;
+  let bestScore = Infinity;
+
+  for (const packName of installed) {
+    const dist = editDist(name, packName.toLowerCase());
+    if (dist < bestScore) {
+      bestName = packName;
+      bestScore = dist;
+    }
+  }
+
+  return bestScore < 3 ? bestName : undefined;
 }
