@@ -30,6 +30,7 @@
     "@octokit/rest": "16.28.4",
     "asar": "2.0.1",
     "chalk": "^2.4.2",
+    "cli-cursor": "^3.1.0",
     "graphql-request": "^1.8.2",
     "js-levenshtein": "^1.1.6",
     "keytar": "^4.11.0",

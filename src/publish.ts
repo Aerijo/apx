@@ -1,4 +1,3 @@
-import {promisify} from "util";
 import {Arguments} from "yargs";
 import * as fs from "fs";
 import {Context} from "./context";

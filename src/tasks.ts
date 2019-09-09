@@ -2,6 +2,8 @@
 import chalk from "chalk";
 import * as logUpdate from "log-update";
 import {EventEmitter} from "events";
+import {createInterface, clearLine, moveCursor} from "readline";
+import * as cliCursor from 'cli-cursor';
 
 process.on("unhandledRejection", (reason, promise) => {
   logUpdate.done();
@@ -146,8 +148,15 @@ export class Task {
     this.events.emit("postWrite", data);
   }
 
-  requestInput(_query: string): Promise<string> {
-    throw new Error("Requesting input not currently supported");
+  requestInput(query: string): Promise<string> {
+    return new Promise(resolve => {
+      this.events.emit("request", {
+        query,
+        cb: (answer: string) => {
+          resolve(answer);
+        },
+      });
+    });
   }
 }
 
@@ -234,11 +243,12 @@ export class TaskManager {
     }
 
     let intervalID: number | NodeJS.Timeout;
-    let postText: string = "";
-    let isFinal: boolean = false;
+    let postText = "";
+    let isFinal = false;
     await new Promise<string | undefined>((resolve, reject) => {
       let frame = 0;
       let updateText: string | undefined;
+      let paused = false;
 
       const nextFrame = (sym?: string, msg?: string) => {
         if (!msg) {
@@ -293,6 +303,20 @@ export class TaskManager {
         nextFrame();
       });
 
+      task.events.on("request", ({query, cb}) => {
+        paused = true;
+        cliCursor.show();
+        const rl = createInterface({input: process.stdin, output: process.stdout});
+        rl.question(query, answer => {
+          cliCursor.hide();
+          clearLine(process.stdout, 0);
+          moveCursor(process.stdout, 0, -1);
+          rl.close();
+          paused = false;
+          cb(answer);
+        });
+      });
+
       task.events.on("title", (title: string) => {
         task.title = title;
         nextFrame();
@@ -309,7 +333,11 @@ export class TaskManager {
       });
 
       if (!staticWait) {
-        intervalID = setInterval(nextFrame, 80);
+        intervalID = setInterval(() => {
+          if (!paused) {
+            nextFrame();
+          }
+        }, 80);
       }
 
       const child = task.task(task, ctx);

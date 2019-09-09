@@ -1,4 +1,4 @@
-import { Context, Target } from "../src/context";
+import {Context, Target} from "../src/context";
 
 import * as fs from "fs";
 

@@ -8,6 +8,7 @@ import {Uninstall} from "./uninstall";
 import {Publish} from "./publish";
 import {Doctor} from "./doctor";
 import {Link} from "./link";
+import {Login} from "./login";
 
 function getArguments(context: Context) {
   return yargs
@@ -198,6 +199,27 @@ function getArguments(context: Context) {
         } else {
           context.setDefault(argv.name as string, argv.value as string);
         }
+      },
+    })
+    .command({
+      command: "login <service> [token]",
+      describe: "Provide credentials for Atom and GitHub",
+      builder() {
+        return yargs
+          .positional("service", {
+            describe: "The service requesting the password or token. Can be `atom` or `github`.",
+            type: "string",
+          })
+          .positional("token", {
+            describe:
+              "The password or token to be stored for that service. Note environment variables will take priority if applicable.",
+            type: "string",
+            default: "",
+          });
+      },
+      handler(argv) {
+        const login = new Login(context);
+        login.handler(argv);
       },
     })
     .middleware([
