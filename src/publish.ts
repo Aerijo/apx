@@ -1,7 +1,6 @@
 import {promisify} from "util";
 import {Arguments} from "yargs";
 import * as fs from "fs";
-import * as path from "path";
 import {Context} from "./context";
 import {getMetadata} from "./package";
 import {post, getAtomioErrorMessage, RequestResult} from "./request";
@@ -9,6 +8,7 @@ import {getToken, Token} from "./auth";
 import {Command} from "./command";
 import {TaskManager} from "./tasks";
 import {getOwnerRepo, queryGraphql, uploadAsset} from "./github";
+import {DirectoryResult} from "tmp-promise";
 
 export class Publish extends Command {
   cwd: string;
@@ -85,7 +85,8 @@ export class Publish extends Command {
   async awaitGitHubTag(
     tag: string,
     attempts: number,
-    attemptCounter: (attempt: number) => void
+    attemptCounter: (attempt: number) => void,
+    authtoken: string
   ): Promise<boolean> {
     const metadata = await getMetadata(this.cwd);
     const {owner, repo} = getOwnerRepo(metadata);
@@ -98,12 +99,11 @@ export class Publish extends Command {
         }
       }
     }`;
-    const authtoken = await getToken(Token.GITHUB);
 
     // TODO: Actually might not be latest tag. Should check all of them.
     for (let i = 0; i < attempts; i++) {
       attemptCounter(i);
-      const data = await queryGraphql(query, authtoken!);
+      const data = await queryGraphql(query, authtoken);
       try {
         const latestTag = data.repository.refs.nodes[0].name;
         if (latestTag === tag) {
@@ -164,28 +164,11 @@ export class Publish extends Command {
     return result;
   }
 
-  runPrepublishAndPack(stdio: string = "inherit"): Promise<void> {
-    return new Promise(resolve => {
-      this.spawn("npm", ["run", "prepublishOnly"], {stdio}).on("exit", code => {
-        if (code) {
-          throw new Error(`Prepublish script failed with code ${code}`);
-        }
-        this.spawn("npm", ["pack"], {stdio}).on("exit", code2 => {
-          if (code2) {
-            throw new Error(`npm pack failed with code ${code2}`);
-          }
-          resolve();
-        });
-      });
-    });
-  }
-
-  async generateReleaseAssets(stdio?: string): Promise<string> {
-    const metadata = await getMetadata(this.cwd);
-
+  async getTarname(metadata: any): Promise<string> {
     if (typeof metadata.name !== "string") {
       throw new Error("Could not detect package name");
     }
+
     if (typeof metadata.version !== "string") {
       throw new Error("Could not detect package version");
     }
@@ -196,24 +179,25 @@ export class Publish extends Command {
 
     const version: string = metadata.version;
 
-    const tarname = `${name}-${version}.tgz`;
+    return `${name}-${version}.tgz`;
+  }
 
-    let exists = true;
-    try {
-      await promisify(fs.access)(`./${tarname}`);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        exists = false;
-      }
-    }
+  async generateReleaseAssets(stdio?: string): Promise<{tarname: string; dir: DirectoryResult}> {
+    const metadata = await getMetadata(this.cwd);
+    const tarname = await this.getTarname(metadata);
+    const tmpDir = await this.getTempDir({prefix: "apx-bundle-"});
 
-    if (exists) {
-      throw new Error(`File ${tarname} cannot exist when publishing`);
-    }
+    await new Promise(async (resolve, reject) => {
+      await this.runScript("prepublishOnly", metadata.scripts, this.cwd);
+      this.spawn("npm", ["pack", this.cwd], {stdio, cwd: tmpDir.path}).on("exit", code => {
+        if (code) {
+          reject(new Error(`npm pack failed with code ${code}`));
+        }
+        resolve();
+      });
+    });
 
-    await this.runPrepublishAndPack(stdio);
-
-    return tarname;
+    return {tarname, dir: tmpDir};
   }
 
   async uploadAssets(releaseData: any, tarname: string): Promise<void> {
@@ -237,45 +221,57 @@ export class Publish extends Command {
         title: () => "Inspecting repo state",
         task: async task => {
           // TODO: Verify commits pushed, on master branch
-          const dirContents = await promisify(fs.readdir)(this.cwd);
-          for (const item of dirContents) {
-            if (path.extname(item) === ".tgz") {
-              // TODO: Either find a way to have npm place them elsewhere, or more fine tuned criteria
-              throw new Error(`Repository contains old build artifact ${item}`);
-            }
+
+          if ((await getToken(Token.ATOMIO)) === undefined) {
+            throw new Error("Must have an auth token for atom.io");
           }
+
+          if ((await getToken(Token.GITHUB)) === undefined) {
+            throw new Error("Must have an auth token for GitHub");
+          }
+
           task.complete();
         },
       },
       {
         title: () => "Bumping package version",
+        skip: ctx => {
+          if (ctx.versionBump) {
+            return false;
+          }
+          ctx.assetsOnly = true;
+          return "Version change not specified, skipping increment";
+        },
         staticWait: () => true,
         task: async (task, ctx) => {
-          if (!ctx.versionBump) {
-            task.error("Missing version not currently supported");
-            return;
-          }
           ctx.tag = await this.updateVersion(ctx.versionBump);
           task.complete(`Bumped package version to ${ctx.tag}`);
         },
       },
       {
         title: ctx => `Publishing version ${ctx.tag} to GitHub`,
+        enabled: ctx => !ctx.assetsOnly,
         task: async (task, ctx) => {
           task.update("Pushing to GitHub");
           await this.pushVersionAndTag(ctx.tag);
           task.update("Verifying tag is visible");
           const attempts = 5;
-          await this.awaitGitHubTag(ctx.tag, attempts, i => {
-            if (i > 0) {
-              task.update(`Verifying tag is visible (attempt ${i + 1} of ${attempts})`);
-            }
-          });
+          await this.awaitGitHubTag(
+            ctx.tag,
+            attempts,
+            i => {
+              if (i > 0) {
+                task.update(`Verifying tag is visible (attempt ${i + 1} of ${attempts})`);
+              }
+            },
+            ctx.authtoken
+          );
           task.complete();
         },
       },
       {
         title: ctx => `Registering version ${ctx.tag} to atom.io`,
+        enabled: ctx => !ctx.assetsOnly,
         task: async (task, ctx) => {
           task.update("Registering package name");
           try {
@@ -294,7 +290,8 @@ export class Publish extends Command {
         enabled: ctx => ctx.bundleRelease,
         task: async (task, ctx) => {
           task.update("Building assets");
-          ctx.tarname = await this.generateReleaseAssets("ignore");
+          const assets = await this.generateReleaseAssets("ignore");
+          ctx.tarname = assets.tarname;
 
           task.update("Creating GitHub release");
           ctx.releaseResult = await this.createRelease(ctx.tag);
@@ -305,6 +302,7 @@ export class Publish extends Command {
 
           task.update("Uploading assets to release");
           await this.uploadAssets(ctx.releaseResult.body, ctx.tarname);
+
           task.complete();
         },
       },

@@ -1,8 +1,12 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import {Context} from "./context";
 import {spawn, ChildProcessWithoutNullStreams} from "child_process";
+import * as tmp from "tmp-promise";
+import {DirectoryResult} from "tmp-promise";
+import {DirOptions} from "tmp";
+tmp.setGracefulCleanup();
+import {Context} from "./context";
 
 export class Command {
   context: Context;
@@ -133,5 +137,34 @@ export class Command {
 
   getShortPath(dir: string): string {
     return dir.startsWith(os.homedir()) ? `~` + dir.slice(os.homedir().length) : dir;
+  }
+
+  getTempDir(options?: DirOptions): Promise<DirectoryResult> {
+    return tmp.dir(options);
+  }
+
+  runScript(name: string, scripts: any, cwd: string): Promise<void> {
+    if (typeof scripts === "object" && typeof scripts[name] === "string") {
+      return new Promise((resolve, reject) => {
+        const child = this.spawn(
+          "npm",
+          ["run", name],
+          {
+            cwd,
+            stdio: "inherit",
+          },
+          {reject}
+        );
+        child.on("exit", err => {
+          if (err) {
+            reject(new Error(`Process exited with code ${err}`));
+          } else {
+            resolve();
+          }
+        });
+      });
+    } else {
+      return Promise.resolve();
+    }
   }
 }

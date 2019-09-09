@@ -144,5 +144,6 @@ export async function queryGraphql(query: string, token: string): Promise<any> {
       authorization: `Bearer ${token}`,
     },
   });
+
   return graphQLClient.request(query);
 }

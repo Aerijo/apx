@@ -13,31 +13,6 @@ export class Uninstall extends Command {
     super(context);
   }
 
-  runScript(name: string, scripts: any, cwd: string): Promise<void> {
-    if (typeof scripts[name] === "string") {
-      return new Promise((resolve, reject) => {
-        const child = this.spawn(
-          "npm",
-          ["run", name],
-          {
-            cwd,
-            stdio: "inherit",
-          },
-          {reject}
-        );
-        child.on("exit", err => {
-          if (err) {
-            reject(new Error(`Process exited with code ${err}`));
-          } else {
-            resolve();
-          }
-        });
-      });
-    } else {
-      return Promise.resolve();
-    }
-  }
-
   handler(argv: Arguments) {
     const packageName = argv.package as string;
 

@@ -3,8 +3,6 @@ import * as path from "path";
 import {Arguments} from "yargs";
 import * as semver from "semver";
 import * as rimraf from "rimraf";
-import * as tmp from "tmp-promise";
-tmp.setGracefulCleanup();
 import {promisify} from "util";
 import {Context} from "./context";
 import {get, getAtomioErrorMessage} from "./request";
@@ -13,6 +11,7 @@ import {Command} from "./command";
 import {TaskManager, TaskContext} from "./tasks";
 import {SemVer} from "semver";
 import {getOwnerRepo, getGithubRelease} from "./github";
+import {DirectoryResult} from "tmp-promise";
 
 interface PackageLoc {
   version: string;
@@ -33,8 +32,8 @@ export class Install extends Command {
     ]);
   }
 
-  async downloadFromUrl(tarball: string): Promise<tmp.DirectoryResult> {
-    const installDir = await tmp.dir({prefix: "apx-install-", unsafeCleanup: true});
+  async downloadFromUrl(tarball: string): Promise<DirectoryResult> {
+    const installDir = await this.getTempDir({prefix: "apx-install-", unsafeCleanup: true});
     await new Promise((resolve, reject) => {
       const child = this.spawn("npm", ["install", "--global-style", "--loglevel=error", tarball], {
         cwd: installDir.path,
@@ -53,7 +52,7 @@ export class Install extends Command {
   }
 
   async movePackageAndCleanup(
-    installDir: tmp.DirectoryResult,
+    installDir: DirectoryResult,
     replaceExisting: boolean
   ): Promise<void> {
     const modulesDir = path.join(installDir.path, "node_modules");

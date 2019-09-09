@@ -42,6 +42,10 @@ export class Context {
       Target.STABLE;
   }
 
+  getTarget(): Target {
+    return this.target;
+  }
+
   setTarget(target: Target) {
     if (target === this.target) return;
     this.target = target;
@@ -86,7 +90,7 @@ export class Context {
         return isMac ? "Atom Beta.app" : "atom-beta";
       case Target.NIGHTLY:
         return isMac ? "Atom Nightly.app" : "atom-nightly";
-      default:
+      case Target.DEV:
         return "atom";
     }
   }
@@ -267,13 +271,11 @@ export class Context {
     this.config[name] = undefined;
     this.config = JSON.parse(JSON.stringify(this.config));
     this.storeConfig();
-    console.log("New config:", this.config);
   }
 
   setDefault(name: string, value: string) {
     this.config[name] = value;
     this.storeConfig();
-    console.log("New config:", this.config);
   }
 
   getConfig(): {[key: string]: any} {

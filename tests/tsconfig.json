@@ -15,8 +15,5 @@
     "removeComments": true,
     "strict": true,
     "target": "ES2018"
-  },
-  "exclude": [
-    "tests"
-  ]
+  }
 }
