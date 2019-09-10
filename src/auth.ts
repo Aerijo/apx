@@ -14,6 +14,11 @@ function getTokenDetails(token: Token): {env: string; key: string; account: stri
   }
 }
 
+export function tokenInEnv(token: Token): boolean {
+  const {env} = getTokenDetails(token);
+  return typeof process.env[env] === "string";
+}
+
 export async function getToken(token: Token, env: boolean = true): Promise<string | undefined> {
   let value: string | undefined | null;
   const details = getTokenDetails(token);

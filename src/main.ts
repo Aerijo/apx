@@ -214,22 +214,24 @@ function getArguments(context: Context) {
             describe:
               "The token to be stored for that service. Note environment variables will take priority if applicable.",
             type: "string",
-            default: "",
+            // default: "",
           })
           .option("delete", {
             describe: "Remove the existing token for the service from the credential manager",
             type: "boolean",
-            default: false,
+            // default: false,
+          })
+          .option("show", {
+            describe: "Print the existing token for the service that will be used",
+            type: "boolean",
+          })
+          .option("keychain", {
+            describe: "Print the existing token for the service stored in the OS keychain",
+            type: "boolean",
           })
           .option("verify", {
             describe: "Checks the existing token works correctly",
             type: "boolean",
-            default: false,
-          })
-          .option("show", {
-            describe: "Print the existing token for the service",
-            type: "boolean",
-            default: false,
           });
       },
       handler(argv) {

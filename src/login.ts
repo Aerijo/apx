@@ -1,7 +1,7 @@
 import {Command} from "./command";
 import {Arguments} from "yargs";
 import {TaskManager} from "./tasks";
-import {Token, setToken, deleteToken, getToken} from "./auth";
+import {Token, setToken, deleteToken, getToken, tokenInEnv} from "./auth";
 
 function serviceToToken(service: string): Token {
   service = service.toLowerCase();
@@ -35,7 +35,7 @@ export class Login extends Command {
       tasks.addTask({
         title: ctx => `Deleting stored token for ${ctx.service}`,
         task: async (task, ctx) => {
-          if (ctx.value !== "") {
+          if (ctx.value !== undefined) {
             throw new Error("Unexpected provided token when deleting");
           }
           const token = serviceToToken(ctx.service);
@@ -52,15 +52,15 @@ export class Login extends Command {
     if (argv.show) {
       other = true;
       tasks.addTask({
-        title: ctx => `Printing stored token for ${ctx.service}`,
+        title: ctx => `Printing token in keychain for ${ctx.service}`,
         task: async (task, ctx) => {
-          if (ctx.value !== "") {
+          if (ctx.value !== undefined) {
             throw new Error("Unexpected provided token when showing current value");
           }
           const token = serviceToToken(ctx.service);
-          const value = await getToken(token, false);
+          const value = await getToken(token);
           if (typeof value === "string") {
-            task.complete(`Token: ${value}`);
+            task.complete(`Token${tokenInEnv(token) ? " (in env)" : " (in keychain)"}: ${value}`);
           } else {
             task.error("No token stored");
           }
@@ -75,15 +75,19 @@ export class Login extends Command {
         task: async (task, ctx) => {
           const token = serviceToToken(ctx.service);
           let value = ctx.value;
-          if (value === "") {
-            value = await getToken(token, false);
+          if (value === undefined) {
+            value = await getToken(token);
           }
 
           if (value === undefined) {
             throw new Error("No token to verify");
           }
 
-          task.complete("Probably works :)");
+          task.update("Work in progress");
+
+          setTimeout(() => {
+            task.complete("To be implemented");
+          }, 1000);
         },
       });
     }
@@ -95,28 +99,24 @@ export class Login extends Command {
         task: async (task, ctx) => {
           const service: string = ctx.service;
           const token = serviceToToken(service);
-          let value: string = ctx.value;
-
-          if (value === "") {
+          let value: string | undefined = ctx.value;
+          if (value === undefined) {
             value = await task.requestInput(`Please enter token for ${service}: `);
           }
 
-          setToken(token, value);
+          await setToken(token, value);
           task.complete(`Set token for ${service}`);
         },
       });
     }
 
-    let service = argv.service;
-    if (typeof service !== "string") {
+    if (typeof argv.service !== "string") {
       throw new Error("Expected service name");
     }
 
-    let value = argv.token;
-
     tasks.run({
-      service,
-      value,
+      service: argv.service,
+      value: argv.token,
       show: argv.show,
       delete: argv.delete,
     });
