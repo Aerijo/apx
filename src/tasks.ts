@@ -307,7 +307,7 @@ export class TaskManager {
         nextFrame();
       });
 
-      task.events.on("request", ({query, cb}: {query: string, cb: Function}) => {
+      task.events.on("request", ({query, cb}: {query: string; cb: Function}) => {
         paused = true;
         cliCursor.show();
         const rl = createInterface({input: process.stdin, output: process.stdout});
