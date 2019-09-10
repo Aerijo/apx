@@ -1,5 +1,6 @@
 import {Arguments} from "yargs";
 import * as fs from "fs";
+import * as path from "path";
 import {Context} from "./context";
 import {getMetadata} from "./package";
 import {post, getAtomioErrorMessage, RequestResult} from "./request";
@@ -184,7 +185,7 @@ export class Publish extends Command {
   async generateReleaseAssets(stdio?: string): Promise<{tarname: string; dir: DirectoryResult}> {
     const metadata = await getMetadata(this.cwd);
     const tarname = await this.getTarname(metadata);
-    const tmpDir = await this.getTempDir({prefix: "apx-bundle-"});
+    const tmpDir = await this.getTempDir({prefix: "apx-bundle-", unsafeCleanup: true});
 
     await new Promise(async (resolve, reject) => {
       await this.runScript("prepublishOnly", metadata.scripts, this.cwd);
@@ -199,17 +200,15 @@ export class Publish extends Command {
     return {tarname, dir: tmpDir};
   }
 
-  async uploadAssets(releaseData: any, tarname: string): Promise<void> {
+  async uploadAssets(releaseData: any, tarname: string, dir: DirectoryResult): Promise<void> {
     const status = await uploadAsset(
       releaseData["upload_url"],
       `apx-bundled-${tarname}`,
       "text/plain",
-      fs.readFileSync(tarname)
+      fs.readFileSync(path.join(dir.path, tarname))
     );
-    fs.unlinkSync(tarname);
-    if (status === 201) {
-      return;
-    } else {
+    dir.cleanup();
+    if (status !== 201) {
       throw new Error(`Error publishing package asset: status ${status}`);
     }
   }
@@ -253,18 +252,21 @@ export class Publish extends Command {
         task: async (task, ctx) => {
           task.update("Pushing to GitHub");
           await this.pushVersionAndTag(ctx.tag);
+
           task.update("Verifying tag is visible");
           const attempts = 5;
+          const attemptCallback = (i: number) => {
+            if (i > 0) {
+              task.update(`Verifying tag is visible (attempt ${i + 1} of ${attempts})`);
+            }
+          };
           await this.awaitGitHubTag(
             ctx.tag,
             attempts,
-            i => {
-              if (i > 0) {
-                task.update(`Verifying tag is visible (attempt ${i + 1} of ${attempts})`);
-              }
-            },
-            ctx.authtoken
+            attemptCallback,
+            (await getToken(Token.GITHUB))!
           );
+
           task.complete();
         },
       },
@@ -279,18 +281,20 @@ export class Publish extends Command {
           } catch (e) {
             task.error(e.message);
           }
+
           task.update("Publishing version");
           await this.publishVersion(ctx.tag);
+
           task.complete();
         },
       },
       {
         title: () => "Publishing package assets",
         enabled: ctx => ctx.bundleRelease,
+        staticWait: () => true,
         task: async (task, ctx) => {
           task.update("Building assets");
           const assets = await this.generateReleaseAssets("ignore");
-          ctx.tarname = assets.tarname;
 
           task.update("Creating GitHub release");
           ctx.releaseResult = await this.createRelease(ctx.tag);
@@ -300,7 +304,7 @@ export class Publish extends Command {
           }
 
           task.update("Uploading assets to release");
-          await this.uploadAssets(ctx.releaseResult.body, ctx.tarname);
+          await this.uploadAssets(ctx.releaseResult.body, assets.tarname, assets.dir);
 
           task.complete();
         },
