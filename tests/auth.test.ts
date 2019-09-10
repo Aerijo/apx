@@ -3,8 +3,9 @@ import {getToken, setToken, Token} from "../src/auth";
 jest.mock("keytar", () => {
   let passwords: {[key: string]: string | undefined} = {};
   return {
-    findPassword: (key: string) => {
+    getPassword: (key: string, account: string) => {
       expect(typeof key).toBe("string");
+      expect(typeof account).toBe("string");
       return typeof passwords[key] === "string" ? passwords[key] : null;
     },
     setPassword: (key: string, account: string, value: string | undefined) => {

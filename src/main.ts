@@ -207,14 +207,29 @@ function getArguments(context: Context) {
       builder() {
         return yargs
           .positional("service", {
-            describe: "The service requesting the password or token. Can be `atom` or `github`.",
+            describe: "The service requesting the token. Can be `atom` or `github`.",
             type: "string",
           })
           .positional("token", {
             describe:
-              "The password or token to be stored for that service. Note environment variables will take priority if applicable.",
+              "The token to be stored for that service. Note environment variables will take priority if applicable.",
             type: "string",
             default: "",
+          })
+          .option("delete", {
+            describe: "Remove the existing token for the service from the credential manager",
+            type: "boolean",
+            default: false,
+          })
+          .option("verify", {
+            describe: "Checks the existing token works correctly",
+            type: "boolean",
+            default: false,
+          })
+          .option("show", {
+            describe: "Print the existing token for the service",
+            type: "boolean",
+            default: false,
           });
       },
       handler(argv) {

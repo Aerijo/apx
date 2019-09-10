@@ -3,7 +3,7 @@ import chalk from "chalk";
 import * as logUpdate from "log-update";
 import {EventEmitter} from "events";
 import {createInterface, clearLine, moveCursor} from "readline";
-import * as cliCursor from 'cli-cursor';
+import * as cliCursor from "cli-cursor";
 
 process.on("unhandledRejection", (reason, promise) => {
   logUpdate.done();
@@ -198,12 +198,16 @@ export class TaskManager {
   tasks: TaskParams[];
   syms = new SymbolProvider();
 
-  constructor(taskParams: TaskParams[], options: TaskManagerOptions = {}) {
-    this.tasks = taskParams;
+  constructor(taskParams?: TaskParams[], options: TaskManagerOptions = {}) {
+    this.tasks = taskParams || [];
 
     if (options.concurrent) {
       throw new Error("Concurrent tasks not currently supported");
     }
+  }
+
+  addTask(taskParams: TaskParams) {
+    this.tasks.push(taskParams);
   }
 
   async run(ctx: TaskContext = {}): Promise<void> {

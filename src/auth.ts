@@ -1,35 +1,38 @@
 import * as keytar from "keytar";
 
-const account = "atom.io";
-
 export enum Token {
   ATOMIO,
   GITHUB,
 }
 
-function getTokenDetails(token: Token): {env: string; key: string} {
+function getTokenDetails(token: Token): {env: string; key: string; account: string} {
   switch (token) {
     case Token.ATOMIO:
-      return {env: "ATOM_ACCESS_TOKEN", key: "Atom.io API Token"};
+      return {env: "ATOM_ACCESS_TOKEN", key: "Atom.io API Token", account: "atom.io"};
     case Token.GITHUB:
-      return {env: "GITHUB_AUTH_TOKEN", key: "GitHub API Token"};
+      return {env: "GITHUB_AUTH_TOKEN", key: "GitHub API Token", account: "apx"};
   }
 }
 
-export async function getToken(token: Token): Promise<string | undefined> {
+export async function getToken(token: Token, env: boolean = true): Promise<string | undefined> {
   let value: string | undefined | null;
   const details = getTokenDetails(token);
 
   value = process.env[details.env];
-  if (typeof value === "string") {
+  if (env && typeof value === "string") {
     return value;
   }
 
-  value = await keytar.findPassword(details.key);
+  value = await keytar.getPassword(details.key, details.account);
   return value !== null ? value : undefined;
 }
 
 export function setToken(token: Token, value: string): Promise<void> {
-  const name = getTokenDetails(token).key;
-  return keytar.setPassword(name, account, value);
+  const {key, account} = getTokenDetails(token);
+  return keytar.setPassword(key, account, value);
+}
+
+export function deleteToken(token: Token): Promise<boolean> {
+  const {key, account} = getTokenDetails(token);
+  return keytar.deletePassword(key, account);
 }
