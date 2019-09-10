@@ -307,14 +307,14 @@ export class TaskManager {
         nextFrame();
       });
 
-      task.events.on("request", ({query, cb}) => {
+      task.events.on("request", ({query, cb}: {query: string, cb: Function}) => {
         paused = true;
         cliCursor.show();
         const rl = createInterface({input: process.stdin, output: process.stdout});
         rl.question(query, answer => {
           cliCursor.hide();
-          clearLine(process.stdout, 0);
-          moveCursor(process.stdout, 0, -1);
+          const numlines = query.split(/\r?\n/g).length;
+          clearLines(numlines);
           rl.close();
           paused = false;
           cb(answer);
@@ -374,4 +374,11 @@ export class TaskManager {
 
 async function getResolved<T>(val: T | Promise<T>): Promise<T> {
   return Promise.resolve().then(() => val);
+}
+
+function clearLines(num: number) {
+  for (let i = 0; i < num; i++) {
+    clearLine(process.stdout, 0);
+    moveCursor(process.stdout, 0, -1);
+  }
 }
