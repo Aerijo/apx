@@ -5,7 +5,15 @@ import {getMetadata, getPackageDetails, getAssetName} from "./package";
 import {Token, unsafeGetToken} from "./auth";
 import {Command} from "./command";
 import {TaskManager} from "./tasks";
-import {getOrCreateRelease, verifyTagExists, ReleaseDetails, uploadReleaseAsset} from "./github";
+import {
+  getOrCreateRelease,
+  verifyTagExists,
+  ReleaseDetails,
+  uploadReleaseAsset,
+  renameReleaseAsset,
+  deleteReleaseAsset,
+  getAssetId,
+} from "./github";
 import {DirectoryResult} from "tmp-promise";
 import {registerPackage, publishVersion, PublishStatus, VersionStatus} from "./atomio";
 
@@ -193,7 +201,6 @@ export class Publish extends Command {
       {
         title: () => "Publishing package assets",
         enabled: ctx => ctx.bundleRelease,
-        staticWait: () => true,
         task: async (task, ctx) => {
           if (ctx.releaseDetails === undefined) {
             throw new Error("No details of release. Please report this as a bug.");
@@ -205,9 +212,30 @@ export class Publish extends Command {
 
           task.update("Uploading asset");
           const filepath = path.join(dir.path, tarname);
-          const {name, version} = await getPackageDetails(this.cwd);
+          const {owner, repo, name, version} = await getPackageDetails(this.cwd);
           const uploadName = getAssetName(name, version);
-          await uploadReleaseAsset(releaseDetails, filepath, uploadName);
+
+          const assets = releaseDetails.assets;
+          if (assets.some(a => a.name === uploadName)) {
+            const overwrite = await task.requestInput(
+              "Existing asset detected. Overwrite? (Y/n): "
+            );
+            if (!/^y(?:es)?$/i.test(overwrite)) {
+              throw new Error("Please remove the existing package asset before trying again");
+            }
+
+            const id = getAssetId(uploadName, assets);
+            if (id === undefined) {
+              throw new Error("Could not find id of asset to be changed. Please report this bug.");
+            }
+
+            const tempName = getUniqueOldAssetName(uploadName, assets);
+            await renameReleaseAsset(owner, repo, id, tempName);
+            await uploadReleaseAsset(releaseDetails, filepath, uploadName);
+            await deleteReleaseAsset(owner, repo, id);
+          } else {
+            await uploadReleaseAsset(releaseDetails, filepath, uploadName);
+          }
 
           await dir.cleanup();
           task.complete();
@@ -220,4 +248,22 @@ export class Publish extends Command {
       versionBump: argv.newversion,
     });
   }
+}
+
+function getUniqueOldAssetName(baseName: string, assets: any[]): string {
+  if (!assets.some(a => a.name === `old-${baseName}`)) {
+    return `old-${baseName}`;
+  }
+
+  for (let i = 0; i < 100; i++) {
+    const randString = Math.random()
+      .toString()
+      .slice(2, 8);
+    const tempName = `old-${randString}-${baseName}`; // TODO: Robust temp name generation
+    if (!assets.some(a => a.name === tempName)) {
+      return tempName;
+    }
+  }
+
+  throw new Error("Could not create unique asset name");
 }

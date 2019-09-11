@@ -205,24 +205,58 @@ export async function uploadReleaseAsset(
   releaseDetails: ReleaseDetails,
   filepath: string,
   uploadName: string
-): Promise<void> {
+): Promise<Octokit.ReposGetReleaseAssetResponse | undefined> {
   const authtoken = await unsafeGetToken(Token.GITHUB);
   const oct = getOctokit(authtoken);
 
   const uploadUrl = releaseDetails.upload_url;
   const file = await util.promisify(fs.readFile)(filepath);
 
-  const result = await oct.repos.uploadReleaseAsset({
-    url: uploadUrl,
-    headers: {
-      "content-type": "application/zip",
-      "content-length": file.length,
-    },
-    name: uploadName,
-    file,
-  });
+  try {
+    const result = await oct.repos.uploadReleaseAsset({
+      url: uploadUrl,
+      headers: {
+        "content-type": "application/zip",
+        "content-length": file.length,
+      },
+      name: uploadName,
+      file,
+    });
+    return result.data as Octokit.ReposGetReleaseAssetResponse;
+  } catch (e) {
+    const errors = e.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      const first = errors[0];
+      if (first.field === "name" && first.code === "already_exists") {
+        return undefined;
+      }
+    }
 
-  if (result.status !== 201) {
-    throw new Error(`Error publishing package asset: status ${status}`);
+    throw e;
+  }
+}
+
+export async function renameReleaseAsset(
+  owner: string,
+  repo: string,
+  id: number,
+  newName: string
+): Promise<void> {
+  const authtoken = await unsafeGetToken(Token.GITHUB);
+  const oct = getOctokit(authtoken);
+  await oct.repos.updateReleaseAsset({owner, repo, asset_id: id, name: newName});
+}
+
+export async function deleteReleaseAsset(owner: string, repo: string, id: number): Promise<void> {
+  const authtoken = await unsafeGetToken(Token.GITHUB);
+  const oct = getOctokit(authtoken);
+  await oct.repos.updateReleaseAsset({owner, repo, asset_id: id});
+}
+
+export function getAssetId(assetName: string, assets: any[]): number | undefined {
+  for (const asset of assets) {
+    if (asset.name === assetName) {
+      return asset.id;
+    }
   }
 }

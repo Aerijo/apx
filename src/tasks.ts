@@ -212,6 +212,7 @@ export class TaskManager {
 
   async run(ctx: TaskContext = {}): Promise<void> {
     const start = new Date();
+    cliCursor.hide();
     for (const params of this.tasks) {
       try {
         const doNext = await this.executeTask(params, ctx);
@@ -222,6 +223,7 @@ export class TaskManager {
         break;
       }
     }
+    cliCursor.show();
     const end = new Date();
 
     console.log(chalk.grey(`elapsed: ${end.getTime() - start.getTime()}ms`));
@@ -317,6 +319,7 @@ export class TaskManager {
           clearLines(numlines);
           rl.close();
           paused = false;
+          nextFrame();
           cb(answer);
         });
       });
