@@ -1,6 +1,8 @@
 import * as Octokit from "@octokit/rest";
 import {GraphQLClient} from "graphql-request";
-import {getToken, Token} from "./auth";
+import {getToken, Token, unsafeGetToken} from "./auth";
+import * as fs from "fs";
+import * as util from "util";
 
 /**
  * We need to
@@ -29,7 +31,7 @@ export async function getGithubRelease(details: PackDetails): Promise<string | u
     details.authtoken = await getToken(Token.GITHUB);
   }
 
-  if (details.authtoken) {
+  if (details.authtoken !== undefined) {
     return getGraphqlReleaseAssetUrl(details, details.authtoken);
   } else {
     return getRestReleaseAssetUrl(details);
@@ -65,6 +67,7 @@ async function getGraphqlReleaseAssetUrl(
 function getOctokit(authtoken?: string): Octokit {
   const params: Octokit.Options = {
     baseUrl: "https://api.github.com",
+    userAgent: "apx",
   };
   if (authtoken) {
     params.auth = authtoken;
@@ -92,26 +95,6 @@ async function getRestReleaseAssetUrl(details: PackDetails): Promise<string | un
   }
 
   return undefined;
-}
-
-export async function uploadAsset(
-  url: string,
-  name: string,
-  type: string,
-  file: string | Buffer
-): Promise<number> {
-  const authtoken = await getToken(Token.GITHUB);
-  const oct = getOctokit(authtoken);
-  const r = await oct.repos.uploadReleaseAsset({
-    url,
-    headers: {
-      "content-type": type,
-      "content-length": file.length,
-    },
-    name,
-    file,
-  });
-  return r.status;
 }
 
 export function getOwnerRepo(repoUrl: any): {owner: string; repo: string} {
@@ -146,4 +129,100 @@ export async function queryGraphql(query: string, token: string): Promise<any> {
   });
 
   return graphQLClient.request(query);
+}
+
+export type ReleaseDetails = Octokit.ReposCreateReleaseResponse &
+  Octokit.ReposGetReleaseResponse & {created: boolean};
+
+export async function getOrCreateRelease(
+  owner: string,
+  repo: string,
+  tag: string
+): Promise<ReleaseDetails> {
+  const authtoken = await unsafeGetToken(Token.GITHUB);
+  const oct = getOctokit(authtoken);
+
+  try {
+    const newRelease = await oct.repos.createRelease({
+      owner,
+      repo,
+      tag_name: tag,
+    });
+    return {
+      created: true,
+      ...newRelease.data,
+    };
+  } catch (e) {
+    if (e.name !== "HttpError" || e.status !== 422) {
+      throw e;
+    }
+
+    const errors = e.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      const first = errors[0];
+      if (first.field === "tag_name" && first.code === "already_exists") {
+        const existingRelease = await oct.repos.getReleaseByTag({owner, repo, tag});
+        return {
+          created: false,
+          ...existingRelease.data,
+        };
+      }
+    }
+
+    throw e;
+  }
+}
+
+export async function verifyTagExists(
+  owner: string,
+  repo: string,
+  tag: string,
+  retry: (i: number) => boolean
+): Promise<void> {
+  const authtoken = await unsafeGetToken(Token.GITHUB);
+  const query = `{
+    repository(owner:"${owner}" name:"${repo}") {
+      ref(qualifiedName:"refs/tags/${tag}") {
+        name
+      }
+    }
+  }`;
+
+  let i = 0;
+  while (true) {
+    const response = await queryGraphql(query, authtoken);
+    if (response.repository.ref !== null) {
+      return;
+    }
+
+    if (!retry(++i)) {
+      throw new Error(`Could not detect tag "${tag}" on GitHub ${owner}/${repo}`);
+    }
+  }
+}
+
+export async function uploadReleaseAsset(
+  releaseDetails: ReleaseDetails,
+  filepath: string,
+  uploadName: string
+): Promise<void> {
+  const authtoken = await unsafeGetToken(Token.GITHUB);
+  const oct = getOctokit(authtoken);
+
+  const uploadUrl = releaseDetails.upload_url;
+  const file = await util.promisify(fs.readFile)(filepath);
+
+  const result = await oct.repos.uploadReleaseAsset({
+    url: uploadUrl,
+    headers: {
+      "content-type": "application/zip",
+      "content-length": file.length,
+    },
+    name: uploadName,
+    file,
+  });
+
+  if (result.status !== 201) {
+    throw new Error(`Error publishing package asset: status ${status}`);
+  }
 }
