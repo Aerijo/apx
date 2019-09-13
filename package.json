@@ -20,7 +20,7 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "exec": "npm run build && echo 'running apx...' && node .",
-    "prepublishOnly": "npm run lint && npm shrinkwrap && git add '.' && git commit -m \"prepare for publish\" && git push && rm -rf ./dist && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
+    "prepublishOnly": "npm run lint && npm shrinkwrap && git add npm-shrinkwrap.json && git commit -m \"prepare for publish\" && git push && rm -rf ./dist && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
     "lint": "prettier --check --ignore-path .gitignore **/*",
     "fix-lint": "prettier --check --write --ignore-path .gitignore **/*",
     "postversion": "git push --follow-tags",
