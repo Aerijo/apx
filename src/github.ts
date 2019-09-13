@@ -250,7 +250,7 @@ export async function renameReleaseAsset(
 export async function deleteReleaseAsset(owner: string, repo: string, id: number): Promise<void> {
   const authtoken = await unsafeGetToken(Token.GITHUB);
   const oct = getOctokit(authtoken);
-  await oct.repos.updateReleaseAsset({owner, repo, asset_id: id});
+  await oct.repos.deleteReleaseAsset({owner, repo, asset_id: id});
 }
 
 export function getAssetId(assetName: string, assets: any[]): number | undefined {
