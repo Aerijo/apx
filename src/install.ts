@@ -3,6 +3,7 @@ import * as path from "path";
 import {Arguments} from "yargs";
 import * as semver from "semver";
 import * as rimraf from "rimraf";
+import * as mv from "mv";
 import {promisify} from "util";
 import {Context} from "./context";
 import {get, getAtomioErrorMessage} from "./request";
@@ -54,7 +55,7 @@ export class Install extends Command {
   async movePackageAndCleanup(
     installDir: DirectoryResult,
     replaceExisting: boolean
-  ): Promise<void> {
+  ): Promise<string> {
     const modulesDir = path.join(installDir.path, "node_modules");
     const contents = (await promisify(fs.readdir)(modulesDir)).filter(n => n !== ".bin");
     if (contents.length !== 1) {
@@ -66,8 +67,16 @@ export class Install extends Command {
     if (replaceExisting) {
       await promisify(rimraf)(dest);
     }
-    await promisify(fs.rename)(source, dest);
-    installDir.cleanup();
+
+    return new Promise<string>((resolve, reject) => {
+      mv(source, dest, error => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(dest);
+        }
+      });
+    });
   }
 
   installDependencies(_argv: Arguments): Promise<void> {
@@ -277,8 +286,8 @@ export class Install extends Command {
           task.update("Downloading package");
           const downloadTemp = await this.downloadFromUrl(ctx.tarball);
           task.update("Moving download to packages folder");
-          await this.movePackageAndCleanup(downloadTemp, ctx.replaceExisting);
-          task.complete();
+          const dest = await this.movePackageAndCleanup(downloadTemp, ctx.replaceExisting);
+          task.complete(`Installed into ${dest}`);
         },
       },
     ]);
