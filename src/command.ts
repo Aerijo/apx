@@ -27,7 +27,7 @@ export class Command {
       options.shell = true;
     }
 
-    const child = spawn(command, args, {...options, env: {...process.env, ...options.env}});
+    const child = spawn(command, args, {...options, env: options.env});
 
     if (logOptions) {
       if (logOptions.reject) {

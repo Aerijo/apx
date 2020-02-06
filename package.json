@@ -22,7 +22,7 @@
     "exec": "npm run build && echo 'running apx...' && node .",
     "prepublishOnly": "npm run lint && npm shrinkwrap && rm -rf ./dist && tsc --declarationMap false --inlineSourceMap false --inlineSources false",
     "lint": "prettier --check --ignore-path .gitignore **/*",
-    "fix-lint": "prettier --check --write --ignore-path .gitignore **/*",
+    "lint:fix": "prettier --check --write --ignore-path .gitignore **/*",
     "postversion": "git push --follow-tags",
     "test": "jest"
   },

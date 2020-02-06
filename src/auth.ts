@@ -13,18 +13,37 @@ interface TokenDetails {
   cached?: string;
 }
 
+const tokenMap: Map<Token, TokenDetails> = new Map([
+  [
+    Token.ATOMIO,
+    {
+      env: "ATOM_ACCESS_TOKEN",
+      key: "Atom.io API Token",
+      account: "atom.io",
+      service: "atom.io",
+    },
+  ],
+  [
+    Token.GITHUB,
+    {
+      env: "GITHUB_AUTH_TOKEN",
+      key: "GitHub API Token",
+      account: "apx",
+      service: "GitHub",
+    },
+  ],
+]);
+
+export function forEachToken(cb: (details: TokenDetails, token?: Token) => void) {
+  tokenMap.forEach(cb);
+}
+
 function getTokenDetails(token: Token): TokenDetails {
-  switch (token) {
-    case Token.ATOMIO:
-      return {
-        env: "ATOM_ACCESS_TOKEN",
-        key: "Atom.io API Token",
-        account: "atom.io",
-        service: "atom.io",
-      };
-    case Token.GITHUB:
-      return {env: "GITHUB_AUTH_TOKEN", key: "GitHub API Token", account: "apx", service: "GitHub"};
+  const details = tokenMap.get(token);
+  if (details === undefined) {
+    throw new Error(`Missing details for token ${token}`);
   }
+  return details;
 }
 
 export function tokenInEnv(token: Token): boolean {

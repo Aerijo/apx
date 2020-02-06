@@ -5,6 +5,7 @@ import * as os from "os";
 import * as semver from "semver";
 import {SemVer} from "semver";
 import * as asar from "asar";
+import {forEachToken} from "./auth";
 
 export enum Target {
   STABLE,
@@ -260,7 +261,16 @@ export class Context {
       npm_config_python: "python2", // TODO: does this work?
     };
 
-    return includeDefault ? {...process.env, ...electronVars} : electronVars;
+    const env: {[key: string]: string} = includeDefault
+      ? {...process.env, ...electronVars}
+      : electronVars;
+
+    // Prevent spawned processes seeing auth tokens.
+    forEachToken(details => {
+      delete env[details.env];
+    });
+
+    return env;
   }
 
   getDefault(name: string): string | undefined {
