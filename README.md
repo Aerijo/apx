@@ -11,7 +11,9 @@ The default package manager `apm` currently has some deficiencies
 What `apx` does:
 - Separates command steps into tasks, with updates as progress occurs. Also pipes `npm` output directly to the terminal.
 - When publishing, supports generating a GitHub release, and publishing a custom release asset (generated via `npm pack`) to it. When installing, `apx` will look for and use this asset before resorting to copying the source code.
+- `apx publish` without version specifier is idempotent; it will continue if a GitHub release is already detected or the version has already been registered on the Atom package registry. If a package asset already exists, it will ask if you want to replace it.
 
+See the [docs](./doc/index.md) for demos of installing and publishing.
 
 
 ## Installation
