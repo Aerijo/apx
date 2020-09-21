@@ -25,6 +25,7 @@ export class Doctor extends Command {
       ["Electron version", this.context.getElectronVersion().version],
       ["Atom directory", this.context.getAtomDirectory()],
       ["Resource path", this.context.getResourceDirectory()],
+      ["Executable path", this.context.getAtomExecutable()],
       ["apx config path", this.context.getConfigPath()],
     ]);
 
