@@ -139,12 +139,20 @@ export class Context {
   getAtomDevAppDirectory(outDirectory: string): string {
     this.log.silly("Getting Atom Dev app directory");
 
-    const nodes = fs.readdirSync(outDirectory, {withFileTypes: true});
-
-    for (const node of nodes) {
-      if (node.isDirectory() && node.name.startsWith("atom-dev-")) {
-        return path.join(outDirectory, node.name);
-      }
+    switch (process.platform) {
+      case "linux":
+        const nodes = fs.readdirSync(outDirectory, {withFileTypes: true});
+        for (const node of nodes) {
+          if (node.isDirectory() && node.name.startsWith("atom-dev-")) {
+            return path.join(outDirectory, node.name);
+          }
+        }
+        break;
+      case "darwin":
+        return path.join(outDirectory, this.appNameForTarget(Target.DEV));
+      default:
+        this.log.error(`Platform ${process.platform} not supported`);
+        throw new Error(`Platform ${process.platform} not supported`);
     }
 
     throw new Error("Did not find Atom dev app directory");
