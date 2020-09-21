@@ -193,6 +193,26 @@ export class Context {
     throw new Error("Unknown platform");
   }
 
+  getMacAppCandidates(target: Target): string[] {
+    const appName = this.appNameForTarget(target);
+
+    let locations = [`/Applications/${appName}`, `${process.env.HOME}/Applications/${appName}`];
+
+    try {
+      locations = locations.concat(
+        child_process
+          .execSync("mdfind \"kMDItemCFBundleIdentifier == 'com.github.atom'\"", {
+            encoding: "utf8",
+            timeout: 1000,
+          })
+          .split("\n")
+          .filter(p => path.basename(p) === appName)
+      );
+    } catch {}
+
+    return locations;
+  }
+
   calculateResourceDirectory(target: Target, useEnv: boolean = true): string {
     this.log.silly("Calculating resource directory");
 
@@ -225,22 +245,9 @@ export class Context {
           .map(f => `${baseDir}\\${f}\\resources\\app.asar`);
       } catch {}
     } else if (process.platform === "darwin") {
-      const apps = child_process
-        .execSync("mdfind \"kMDItemCFBundleIdentifier == 'com.github.atom'\"", {
-          encoding: "utf8",
-          timeout: 1000,
-        })
-        .split("\n");
-
-      if (apps.length > 0) {
-        for (const dir of apps) {
-          if (path.basename(dir) === appName) {
-            appLocations.push(`${dir}/Contents/Resources/app.asar`);
-            break;
-          }
-        }
-      }
-      appLocations.push(`/Applications/${appName}/Contents/Resources/app.asar`);
+      appLocations.push(
+        ...this.getMacAppCandidates(target).map(p => `${p}/Contents/Resources/app.asar`)
+      );
     } else if (process.platform === "linux") {
       appLocations.push(
         `/usr/local/share/${appName}/resources/app.asar`,
@@ -250,8 +257,11 @@ export class Context {
       throw new Error(`Platform ${process.platform} not supported`);
     }
 
+    this.log.silly(`Considering app locations: ${appLocations}`);
+
     for (const location of appLocations) {
       if (fs.existsSync(location)) {
+        this.log.silly(`Location ${location} found to exist, using it`);
         return location;
       }
     }
