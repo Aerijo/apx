@@ -109,7 +109,7 @@ export class Task {
   }
 
   /**
-   * FLags the task as meeting an exception, but one that still allows the
+   * Flags the task as meeting an exception, but one that still allows the
    * remaining tasks to run.
    */
   nonFatalError(message: string) {
