@@ -181,7 +181,9 @@ export class Context {
     switch (process.platform) {
       case "darwin":
         const name = displayNameForTarget(target);
-        locations = this.getMacAppCandidates(target).map(p => path.join(p, "MacOS", name));
+        locations = this.getMacAppCandidates(target).map(p =>
+          path.join(p, "Contents", "MacOS", name)
+        );
         break;
       default:
         throw new Error(`Platform ${process.platform} not supported yet`);
@@ -195,6 +197,8 @@ export class Context {
         return location;
       }
     }
+
+    throw new Error("Could not find executable path");
   }
 
   getAtomExecutableFromBase(target: Target, base: string): string {
