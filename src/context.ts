@@ -191,8 +191,7 @@ export class Context {
 
     this.log.silly(`Candidate executable paths: ${locations}`);
 
-    for (const location in locations) {
-      this.log.silly(`Checking location: ${location}`);
+    for (const location of locations) {
       if (fs.existsSync(location)) {
         this.log.silly(`Location ${location} found to exist, using it`);
         return location;
