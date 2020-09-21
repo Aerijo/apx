@@ -144,7 +144,7 @@ export class FileLog implements Log {
       return;
     }
 
-    fs.writeSync(this.handle, `${Date.now()}: ${prefix} ${msg.join(" ")}\n`);
+    fs.writeSync(this.handle, `${new Date().toLocaleString()}: ${prefix} ${msg.join(" ")}\n`);
   }
 
   error(...msg: string[]): void {
