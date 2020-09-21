@@ -179,6 +179,11 @@ export class Context {
 
     let locations: string[];
     switch (process.platform) {
+      case "linux":
+        locations = this.getLinuxAppCandidates(target).map(p =>
+          this.getAtomExecutableFromBase(target, p)
+        );
+        break;
       case "darwin":
         locations = this.getMacAppCandidates(target).map(p =>
           this.getAtomExecutableFromBase(target, p)
