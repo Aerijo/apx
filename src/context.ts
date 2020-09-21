@@ -136,16 +136,19 @@ export class Context {
     return path.join(this.getReposDirectory(), "atom");
   }
 
+  private getDirectoriesWithNameStart(dir: string, start: string): string[] {
+    const nodes = fs.readdirSync(dir, {withFileTypes: true});
+    return nodes.filter(n => n.isDirectory() && n.name.startsWith(start)).map(n => n.name);
+  }
+
   getAtomDevAppDirectory(outDirectory: string): string {
     this.log.silly("Getting Atom Dev app directory");
 
     switch (process.platform) {
       case "linux":
-        const nodes = fs.readdirSync(outDirectory, {withFileTypes: true});
-        for (const node of nodes) {
-          if (node.isDirectory() && node.name.startsWith("atom-dev-")) {
-            return path.join(outDirectory, node.name);
-          }
+        const dirs = this.getDirectoriesWithNameStart(outDirectory, "atom-dev-");
+        if (dirs.length > 0) {
+          return path.join(outDirectory, dirs[0]);
         }
         break;
       case "darwin":
@@ -189,6 +192,10 @@ export class Context {
           this.getAtomExecutableFromBase(target, p)
         );
         break;
+      case "win32":
+        locations = this.getWindowsAppCandidates(target).map(p =>
+          this.getAtomExecutableFromBase(target, p)
+        );
       default:
         throw new Error(`Platform ${process.platform} not supported yet`);
     }
@@ -212,7 +219,7 @@ export class Context {
       case "darwin":
         return path.join(base, "Contents", "MacOS", displayNameForTarget(target));
       case "win32":
-        throw new Error("Windows not supported yet");
+        return path.join(base, this.appNameForTarget(target));
     }
 
     throw new Error("Unknown platform");
@@ -243,15 +250,13 @@ export class Context {
     return [`/usr/share/${appName}`, `/usr/local/share/${appName}`];
   }
 
-  getWindowsResourceDirectoryCandidates(target: Target): string[] {
+  getWindowsAppCandidates(target: Target): string[] {
     const baseDir = path.join(os.homedir(), "AppData", "Local", this.appNameForTarget(target));
-    try {
-      return fs
-        .readdirSync(baseDir)
-        .filter(f => f.startsWith("app"))
-        .map(f => path.join(baseDir, f, "resources", "app.asar"));
-    } catch {}
-    return [];
+    return this.getDirectoriesWithNameStart(baseDir, "app-").map(n => path.join(baseDir, n));
+  }
+
+  getWindowsResourceDirectoryCandidates(target: Target): string[] {
+    return this.getWindowsAppCandidates(target).map(n => path.join(n, "resources", "app.asar"));
   }
 
   calculateResourceDirectory(target: Target, useEnv: boolean = true): string {
@@ -439,7 +444,7 @@ export class Context {
     return this.atomVersion!;
   }
 
-  getTrueAtomVersions(target: Target = this.target): Map<string, string> {
+  getTrueElectronVersions(target: Target = this.target): Map<string, string> {
     const executable = this.getAtomExecutable(target);
 
     const out = child_process.spawnSync(
