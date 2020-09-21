@@ -268,7 +268,7 @@ function setTargetFromArgs(argv: Arguments, context: Context) {
     context.setTarget(target);
   }
 
-  for (const target of ["stable", "beta", "nightly", "dev"]) {
+  for (const target of ["stable", "beta", "nightly", "tdev"]) {
     if (argv[target]) {
       targetCount += 1;
       context.setTarget(getTargetFromString(target)!);

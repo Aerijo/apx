@@ -471,6 +471,7 @@ export function getTargetFromString(input: string): Target | undefined {
     case "nightly":
       return Target.NIGHTLY;
     case "dev":
+    case "tdev":
       return Target.DEV;
   }
   return undefined;
