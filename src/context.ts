@@ -177,7 +177,24 @@ export class Context {
       return this.getAtomExecutableFromBase(target, appPath);
     }
 
-    throw new Error("Non-dev not supported yet");
+    let locations: string[];
+    switch (process.platform) {
+      case "darwin":
+        const name = displayNameForTarget(target);
+        locations = this.getMacAppCandidates(target).map(p => path.join(p, "MacOS", name));
+        break;
+      default:
+        throw new Error(`Platform ${process.platform} not supported yet`);
+    }
+
+    this.log.silly(`Candidate executable paths: ${locations}`);
+
+    for (const location in locations) {
+      if (fs.existsSync(location)) {
+        this.log.silly(`Location ${location} found to exist, using it`);
+        return location;
+      }
+    }
   }
 
   getAtomExecutableFromBase(target: Target, base: string): string {
