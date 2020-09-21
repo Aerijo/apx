@@ -439,6 +439,21 @@ export class Context {
     return this.atomVersion!;
   }
 
+  getTrueAtomVersions(target: Target = this.target): Map<string, string> {
+    const executable = this.getAtomExecutable(target);
+
+    const out = child_process.spawnSync(
+      executable,
+      ["-e", "console.log(JSON.stringify(process.versions))"],
+      {
+        encoding: "utf8",
+        env: {...process.env, ELECTRON_RUN_AS_NODE: "1"},
+      }
+    );
+
+    return new Map(Object.entries(JSON.parse(out.stdout)));
+  }
+
   getElectronVersion(): SemVer {
     this.log.silly("Getting Electron version");
     if (!this.electronVersion) {

@@ -38,6 +38,11 @@ export class Doctor extends Command {
     }
     properties.set("Detected apps", detectedAtoms.join(", "));
 
+    const trueVersions = this.context.getTrueAtomVersions();
+    const versions = [...trueVersions.entries()].map(([n, v]) => `  - ${n}: ${v}`).join("\n");
+
+    properties.set(`Electron executable versions`, "\n" + versions);
+
     return properties;
   }
 
