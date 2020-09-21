@@ -6,6 +6,7 @@ import * as semver from "semver";
 import {SemVer} from "semver";
 import * as asar from "asar";
 import {forEachToken} from "./auth";
+import {NullLog, Log} from "./log";
 
 export enum Target {
   STABLE,
@@ -35,6 +36,7 @@ export class Context {
   private electronVersion: SemVer | undefined;
   private config: {[key: string]: any};
   private target: Target;
+  log: Log = new NullLog();
 
   constructor() {
     this.config = this.loadConfig();
@@ -48,7 +50,11 @@ export class Context {
   }
 
   setTarget(target: Target) {
-    if (target === this.target) return;
+    this.log.silly(`Attempting to set target to ${target}`);
+    if (target === this.target) {
+      this.log.silly(`Target already ${target}`);
+    }
+    this.log.verbose(`Setting target to ${target}`);
     this.target = target;
     this.resourceDirectory = undefined;
     this.atomVersion = undefined;
@@ -56,28 +62,57 @@ export class Context {
   }
 
   getConfigPath(): string {
-    return process.env.APX_CONFIG_PATH || path.join(this.getAtomDirectory(), ".apxrc");
+    this.log.silly("Getting config path");
+
+    let configPath: string;
+    if (typeof process.env.APX_CONFIG_PATH === "string") {
+      this.log.verbose(`Config path set via APX_CONFIG_PATH`);
+      configPath = process.env.APX_CONFIG_PATH;
+    } else {
+      configPath = path.join(this.getAtomDirectory(), ".apxrc");
+    }
+
+    this.log.verbose(`Config path is '${configPath}'`);
+    return configPath;
   }
 
   loadConfig(): {[key: string]: any} {
+    this.log.silly("Loading config file");
     const configPath = this.getConfigPath();
     try {
-      return JSON.parse(fs.readFileSync(configPath, {encoding: "utf8"}));
-    } catch {
+      this.log.silly("Reading config file");
+      const contents = fs.readFileSync(configPath, {encoding: "utf8"});
+      this.log.silly("Parsing config file");
+      const parsed = JSON.parse(contents);
+      this.log.silly("Parsed config file");
+      return parsed;
+    } catch (e) {
+      this.log.silly(`Error loading config: ${e}`);
       return {};
     }
   }
 
   storeConfig() {
+    this.log.silly("Storing config to file");
     const configPath = this.getConfigPath();
     const configContents = JSON.stringify(this.config, undefined, 2);
     fs.writeFileSync(configPath, configContents, {encoding: "utf8"});
+    this.log.silly("Stored config to file");
     return;
   }
 
   getAtomDirectory(): string {
     if (!this.atomDirectory) {
-      this.atomDirectory = process.env.ATOM_HOME || path.join(os.homedir(), ".atom");
+      this.log.silly("Calculating atom directory");
+
+      if (typeof process.env.ATOM_HOME === "string") {
+        this.log.verbose(`Atom directory set via ATOM_HOME`);
+        this.atomDirectory = process.env.ATOM_HOME;
+      } else {
+        this.atomDirectory = path.join(os.homedir(), ".atom");
+      }
+
+      this.log.verbose(`Atom home is ${this.atomDirectory}`);
     }
     return this.atomDirectory;
   }
@@ -96,16 +131,77 @@ export class Context {
     }
   }
 
+  getAtomDevRepo(): string {
+    this.log.silly("Getting Atom dev repo");
+    return path.join(this.getReposDirectory(), "atom");
+  }
+
+  getAtomDevAppDirectory(outDirectory: string): string {
+    this.log.silly("Getting Atom Dev app directory");
+
+    const nodes = fs.readdirSync(outDirectory, {withFileTypes: true});
+
+    for (const node of nodes) {
+      if (node.isDirectory() && node.name.startsWith("atom-dev-")) {
+        return path.join(outDirectory, node.name);
+      }
+    }
+
+    throw new Error("Did not find Atom dev app directory");
+  }
+
+  /**
+   * Finds the path to the application executable. This is the one that
+   * is the electron process, and can be run as a node process by setting
+   * ELECTRON_RUN_AS_NODE in the environment.
+   */
+  getAtomExecutable(target: Target = this.target, useEnv: boolean = true): string {
+    this.log.silly("Getting Atom executable location");
+
+    if (process.env.ATOM_EXECUTABLE_PATH && useEnv) {
+      this.log.verbose(`Atom executable location set via ATOM_EXECUTABLE_PATH`);
+      return process.env.ATOM_EXECUTABLE_PATH;
+    }
+
+    if (target === Target.DEV) {
+      const base = path.join(this.getAtomDevRepo(), "out");
+      const appPath = this.getAtomDevAppDirectory(base);
+      return this.getAtomExecutableFromBase(target, appPath);
+    }
+
+    throw new Error("Non-dev not supported yet");
+  }
+
+  getAtomExecutableFromBase(target: Target, base: string): string {
+    switch (process.platform) {
+      case "linux":
+        return path.join(base, this.appNameForTarget(target));
+      case "darwin":
+        return path.join(base, "Contents", "MacOS", displayNameForTarget(target));
+      case "win32":
+        throw new Error("Windows not supported yet");
+    }
+
+    throw new Error("Unknown platform");
+  }
+
   calculateResourceDirectory(target: Target, useEnv: boolean = true): string {
+    this.log.silly("Calculating resource directory");
+
     if (process.env.ATOM_RESOURCE_PATH && useEnv) {
+      this.log.verbose(
+        `Resource directory set via ATOM_RESOURCE_PATH to ${process.env.ATOM_RESOURCE_PATH}`
+      );
       return process.env.ATOM_RESOURCE_PATH;
     }
 
     if (target === Target.DEV) {
       const location = path.join(this.getReposDirectory(), "atom");
       if (fs.existsSync(location)) {
+        this.log.silly(`Resource directory for target DEV: ${location}`);
         return location;
       }
+      this.log.error("Could not find resource directory for taget DEV");
       throw new Error("Could not find Atom dev repo");
     }
 
@@ -155,58 +251,111 @@ export class Context {
     throw new Error("Could not locate Atom resources path");
   }
 
-  getResourceDirectory(target?: Target): string {
-    if (target !== undefined && target !== this.target) {
+  getResourceDirectory(target: Target = this.target): string {
+    this.log.silly("Getting resource directory");
+
+    if (target !== this.target) {
+      this.log.silly("Requested target not default target; calculating location");
       return this.calculateResourceDirectory(target);
     }
 
     if (!this.resourceDirectory) {
       this.resourceDirectory = this.calculateResourceDirectory(this.target);
     }
+
+    this.log.silly(`Resource directory is ${this.resourceDirectory}`);
     return this.resourceDirectory;
   }
 
+  /**
+   * The path to a directory that contains the `atom` repo as an
+   * immediate child.
+   */
   getReposDirectory(): string {
+    this.log.silly("Getting repos directory");
+
     if (!this.reposDirectory) {
-      this.reposDirectory =
-        process.env.ATOM_REPOS_HOME !== undefined
-          ? process.env.ATOM_REPOS_HOME
-          : path.join(os.homedir(), "github");
+      if (typeof process.env.ATOM_REPOS_HOME === "string") {
+        this.log.verbose(`Repos directory set via ATOM_REPOS_HOME`);
+        this.reposDirectory = process.env.ATOM_REPOS_HOME;
+      } else {
+        this.reposDirectory = path.join(os.homedir(), "github");
+      }
     }
+
+    this.log.silly(`Repos directory is ${this.reposDirectory}`);
     return this.reposDirectory;
   }
 
   getAtomApiUrl(): string {
-    return process.env.ATOM_API_URL || "https://atom.io/api";
+    this.log.silly("Getting Atom repos URL");
+
+    if (typeof process.env.ATOM_API_URL === "string") {
+      this.log.verbose(`Atom repos URL set via ATOM_API_URL to ${process.env.ATOM_API_URL}`);
+      return process.env.ATOM_API_URL;
+    }
+
+    return "https://atom.io/api";
   }
 
   getAtomPackagesUrl(): string {
-    return process.env.ATOM_PACKAGES_URL || `${this.getAtomApiUrl()}/packages`;
+    this.log.silly("Getting Atom packages URL");
+
+    if (typeof process.env.ATOM_PACKAGES_URL === "string") {
+      this.log.verbose(
+        `Atom packages URL set via ATOM_PACKAGES_URL to ${process.env.ATOM_PACKAGES_URL}`
+      );
+      return process.env.ATOM_PACKAGES_URL;
+    }
+
+    return `${this.getAtomApiUrl()}/packages`;
   }
 
   getElectronUrl(): string {
-    return process.env.ATOM_ELECTRON_URL || "https://atom.io/download/electron";
+    this.log.silly("Getting Electron URL");
+
+    if (typeof process.env.ATOM_ELECTRON_URL === "string") {
+      this.log.verbose(
+        `Electorn URL set via ATOM_ELECTRON_URL to ${process.env.ATOM_ELECTRON_URL}`
+      );
+      return process.env.ATOM_ELECTRON_URL;
+    }
+
+    return "https://atom.io/download/electron";
   }
 
   getGithubApiUrl(): string {
-    return process.env.ATOM_GITHUB_URL || "https://api.github.com";
+    this.log.silly("Getting GitHub API URL");
+
+    if (typeof process.env.ATOM_GITHUB_URL === "string") {
+      this.log.verbose(`GitHub API URL set via ATOM_GITHUB_URL to ${process.env.ATOM_GITHUB_URL}`);
+      return process.env.ATOM_GITHUB_URL;
+    }
+
+    return "https://api.github.com";
   }
 
   getGithubRepoUrl(owner: string, repo: string): string {
+    this.log.silly(`Getting GitHub repo URL (owner=${owner}, repo=${repo})`);
     return `${this.getGithubApiUrl()}/repos/${owner}/${repo}`;
   }
 
   getAtomPackagesDirectory(dev: boolean = false): string {
+    this.log.silly(`Getting Atom packages directory (dev=${dev})`);
+
     return dev
       ? path.join(this.getAtomDirectory(), "dev", "packages")
       : path.join(this.getAtomDirectory(), "packages");
   }
 
   getAtomNodeDirectory(): string {
+    this.log.silly("Getting Atom node-gyp directory");
     return path.join(this.getAtomDirectory(), ".node-gyp");
   }
 
   calculateAtomElectronVersions() {
+    this.log.silly("Calculating Atom and Electron versions");
+
     const resourceDir = this.getResourceDirectory();
     const metadata =
       path.extname(resourceDir) === ".asar"
@@ -231,25 +380,39 @@ export class Context {
   }
 
   getAtomVersion(): SemVer {
+    this.log.silly("Getting Atom version");
     if (!this.atomVersion) {
       this.calculateAtomElectronVersions();
     }
+    this.log.silly(`Atom version is ${this.atomVersion}`);
     return this.atomVersion!;
   }
 
   getElectronVersion(): SemVer {
+    this.log.silly("Getting Electron version");
     if (!this.electronVersion) {
       this.calculateAtomElectronVersions();
     }
+    this.log.silly(`Electron version is ${this.electronVersion}`);
     return this.electronVersion!;
   }
 
   getElectronArch(): string {
-    return process.env.ATOM_ARCH || process.arch;
+    this.log.silly("Getting Electron arch");
+
+    if (typeof process.env.ATOM_ARCH === "string") {
+      this.log.verbose(`Electron arch set via ATOM_ARCH to ${process.env.ATOM_ARCH}`);
+      return process.env.ATOM_ARCH;
+    }
+
+    this.log.silly(`Electron arch is ${process.arch}`);
+    return process.arch;
   }
 
   // See https://electronjs.org/docs/tutorial/using-native-node-modules#using-npm
   getElectronEnv(includeDefault: boolean = true): {[key: string]: string} {
+    this.log.silly("Getting Electron environment");
+
     const electronVars = {
       // USERPROFILE: path.resolve(os.homedir(), ".electron-gyp"), // Cannot blanket set, as home dir is needed by things like git
       // HOME: path.resolve(os.homedir(), ".electron-gyp"),
@@ -270,25 +433,31 @@ export class Context {
       delete env[details.env];
     });
 
+    this.log.silly(`Electron environment: ${require("util").inspect(env)}`);
+
     return env;
   }
 
   getDefault(name: string): string | undefined {
+    this.log.silly(`Getting default valude for ${name}`);
     return this.config[name];
   }
 
   unsetDefault(name: string) {
+    this.log.verbose(`Unsetting default value for ${name}`);
     this.config[name] = undefined;
     this.config = JSON.parse(JSON.stringify(this.config));
     this.storeConfig();
   }
 
   setDefault(name: string, value: string) {
+    this.log.verbose(`Setting default value for ${name} to ${value}`);
     this.config[name] = value;
     this.storeConfig();
   }
 
   getConfig(): {[key: string]: any} {
+    this.log.silly("Getting config");
     return this.config;
   }
 }

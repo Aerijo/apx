@@ -9,6 +9,7 @@ import {Publish} from "./publish";
 import {Doctor} from "./doctor";
 import {Link} from "./link";
 import {Login} from "./login";
+import {FileLog} from "./log";
 
 function getArguments(context: Context) {
   return yargs
@@ -22,6 +23,11 @@ function getArguments(context: Context) {
     .option("help", {
       alias: "h",
       describe: "Print this usage message",
+    })
+    .option("log", {
+      describe: "File to log internal activity to",
+      type: "string",
+      requiresArg: true,
     })
     .option("target", {
       describe:
@@ -248,6 +254,10 @@ function getArguments(context: Context) {
 }
 
 function setTargetFromArgs(argv: Arguments, context: Context) {
+  if (typeof argv.log === "string") {
+    context.log = new FileLog(argv.log);
+  }
+
   let targetCount = 0;
   if (typeof argv.target === "string") {
     targetCount += 1;
