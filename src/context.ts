@@ -196,6 +196,7 @@ export class Context {
         locations = this.getWindowsAppCandidates(target).map(p =>
           this.getAtomExecutableFromBase(target, p)
         );
+        break;
       default:
         throw new Error(`Platform ${process.platform} not supported yet`);
     }
