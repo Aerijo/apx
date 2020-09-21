@@ -120,15 +120,17 @@ export class Doctor extends Command {
         task: async task => {
           const results = await this.doctorApx();
           let prettyPrint = "";
+          let errored = false;
           for (const [key, val] of results.entries()) {
             try {
               prettyPrint += `- ${key}: ${val()}\n`;
             } catch (e) {
               prettyPrint += `! Failed to calculate ${key}: ${e}\n`;
+              errored = true;
             }
           }
           task.postWrite(prettyPrint);
-          task.complete();
+          errored ? task.nonFatalError("Error in some checks") : task.complete();
         },
       },
       {
