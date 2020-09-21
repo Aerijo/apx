@@ -11,7 +11,7 @@ export class Doctor extends Command {
     super(context);
   }
 
-  async getResourceDirForTarget(target: Target): Promise<string | undefined> {
+  getResourceDirForTarget(target: Target): string | undefined {
     try {
       return this.context.calculateResourceDirectory(target, false);
     } catch {
@@ -19,29 +19,32 @@ export class Doctor extends Command {
     }
   }
 
-  async doctorApx(): Promise<Map<string, string>> {
+  async doctorApx(): Promise<Map<string, () => string>> {
     const properties = new Map([
-      ["Atom version", this.context.getAtomVersion().version],
-      ["Electron version", this.context.getElectronVersion().version],
-      ["Atom directory", this.context.getAtomDirectory()],
-      ["Resource path", this.context.getResourceDirectory()],
-      ["Executable path", this.context.getAtomExecutable()],
-      ["apx config path", this.context.getConfigPath()],
+      ["Atom version", () => this.context.getAtomVersion().version],
+      ["Electron version", () => this.context.getElectronVersion().version],
+      ["Atom directory", () => this.context.getAtomDirectory()],
+      ["Resource path", () => this.context.getResourceDirectory()],
+      ["Executable path", () => this.context.getAtomExecutable()],
+      ["apx config path", () => this.context.getConfigPath()],
     ]);
 
-    const targets = [Target.STABLE, Target.BETA, Target.NIGHTLY, Target.DEV];
-    const detectedAtoms = [];
-    for (const target of targets) {
-      if (await this.getResourceDirForTarget(target)) {
-        detectedAtoms.push(displayNameForTarget(target));
+    properties.set("Detected apps", () => {
+      const targets = [Target.STABLE, Target.BETA, Target.NIGHTLY, Target.DEV];
+      const detectedAtoms = [];
+      for (const target of targets) {
+        if (this.getResourceDirForTarget(target) !== undefined) {
+          detectedAtoms.push(displayNameForTarget(target));
+        }
       }
-    }
-    properties.set("Detected apps", detectedAtoms.join(", "));
+      return detectedAtoms.join(", ");
+    });
 
-    const trueVersions = this.context.getTrueElectronVersions();
-    const versions = [...trueVersions.entries()].map(([n, v]) => `  - ${n}: ${v}`).join("\n");
-
-    properties.set(`Electron executable versions`, "\n" + versions);
+    properties.set(`Electron executable versions`, () => {
+      const trueVersions = this.context.getTrueElectronVersions();
+      const versions = [...trueVersions.entries()].map(([n, v]) => `  - ${n}: ${v}`).join("\n");
+      return "\n" + versions;
+    });
 
     return properties;
   }
@@ -118,7 +121,11 @@ export class Doctor extends Command {
           const results = await this.doctorApx();
           let prettyPrint = "";
           for (const [key, val] of results.entries()) {
-            prettyPrint += `- ${key}: ${val}\n`;
+            try {
+              prettyPrint += `- ${key}: ${val()}\n`;
+            } catch (e) {
+              prettyPrint += `! Failed to calculate ${key}: ${e}\n`;
+            }
           }
           task.postWrite(prettyPrint);
           task.complete();
