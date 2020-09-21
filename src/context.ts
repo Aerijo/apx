@@ -180,9 +180,8 @@ export class Context {
     let locations: string[];
     switch (process.platform) {
       case "darwin":
-        const name = displayNameForTarget(target);
         locations = this.getMacAppCandidates(target).map(p =>
-          path.join(p, "Contents", "MacOS", name)
+          this.getAtomExecutableFromBase(target, p)
         );
         break;
       default:
@@ -234,6 +233,22 @@ export class Context {
     return locations;
   }
 
+  getLinuxAppCandidates(target: Target): string[] {
+    const appName = this.appNameForTarget(target);
+    return [`/usr/share/${appName}`, `/usr/local/share/${appName}`];
+  }
+
+  getWindowsResourceDirectoryCandidates(target: Target): string[] {
+    const baseDir = path.join(os.homedir(), "AppData", "Local", this.appNameForTarget(target));
+    try {
+      return fs
+        .readdirSync(baseDir)
+        .filter(f => f.startsWith("app"))
+        .map(f => path.join(baseDir, f, "resources", "app.asar"));
+    } catch {}
+    return [];
+  }
+
   calculateResourceDirectory(target: Target, useEnv: boolean = true): string {
     this.log.silly("Calculating resource directory");
 
@@ -254,25 +269,17 @@ export class Context {
       throw new Error("Could not find Atom dev repo");
     }
 
-    let appLocations: string[] = [];
-    const appName = this.appNameForTarget(target);
+    let appLocations: string[];
 
     if (process.platform === "win32") {
-      const baseDir = `${os.homedir()}\\AppData\\Local\\${appName}`;
-      try {
-        appLocations = fs
-          .readdirSync(baseDir)
-          .filter(f => f.startsWith("app"))
-          .map(f => `${baseDir}\\${f}\\resources\\app.asar`);
-      } catch {}
+      appLocations = this.getWindowsResourceDirectoryCandidates(target);
     } else if (process.platform === "darwin") {
-      appLocations.push(
-        ...this.getMacAppCandidates(target).map(p => `${p}/Contents/Resources/app.asar`)
+      appLocations = this.getMacAppCandidates(target).map(p =>
+        path.join(p, "Contents", "Resources", "app.asar")
       );
     } else if (process.platform === "linux") {
-      appLocations.push(
-        `/usr/local/share/${appName}/resources/app.asar`,
-        `/usr/share/${appName}/resources/app.asar`
+      appLocations = this.getLinuxAppCandidates(target).map(p =>
+        path.join(p, "resources", "app.asar")
       );
     } else {
       throw new Error(`Platform ${process.platform} not supported`);
