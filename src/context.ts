@@ -220,7 +220,7 @@ export class Context {
       case "darwin":
         return path.join(base, "Contents", "MacOS", displayNameForTarget(target));
       case "win32":
-        return path.join(base, this.appNameForTarget(target));
+        return path.join(base, `${this.appNameForTarget(target)}.exe`);
     }
 
     throw new Error("Unknown platform");
