@@ -19,9 +19,9 @@ export class Doctor extends Command {
     }
   }
 
-  checkAtomDirectoryPermissions(task: Task): boolean {
+  async checkDirectoryPermissions(task: Task, startDir: string): Promise<boolean> {
     let success = true;
-    const stack: [string, boolean][] = [[this.context.getAtomDirectory(), true]];
+    const stack: [string, boolean][] = [[startDir, true]];
     while (stack.length > 0) {
       const [node, isDir] = stack.pop()!;
       try {
@@ -40,6 +40,16 @@ export class Doctor extends Command {
     }
 
     return success;
+  }
+
+  checkAtomDirectoryPermissions(task: Task): Promise<boolean> {
+    task.update("Checking Atom directory permissions");
+    return this.checkDirectoryPermissions(task, this.context.getAtomDirectory());
+  }
+
+  checkAtomInstallPermissions(task: Task): Promise<boolean> {
+    task.update("Checking Atom install permissions");
+    return this.checkDirectoryPermissions(task, this.context.getAtomInstallLocation());
   }
 
   async doctorApx(): Promise<Map<string, () => string>> {
@@ -133,7 +143,9 @@ export class Doctor extends Command {
   }
 
   async doctorAtom(task: Task): Promise<boolean> {
-    return this.checkAtomDirectoryPermissions(task);
+    const atomDir = await this.checkAtomDirectoryPermissions(task);
+    const installDir = await this.checkAtomInstallPermissions(task);
+    return atomDir && installDir;
   }
 
   handler(_argv: Arguments) {
@@ -160,7 +172,6 @@ export class Doctor extends Command {
         title: () => "Checking Atom",
         task: async task => {
           const success = await this.doctorAtom(task);
-
           if (success) {
             task.complete("Successfully doctored Atom");
           } else {

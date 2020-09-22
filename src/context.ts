@@ -213,7 +213,7 @@ export class Context {
     throw new Error("Could not find executable path");
   }
 
-  getAtomExecutableFromBase(target: Target, base: string): string {
+  getAtomExecutableFromBase(target: Target = this.target, base: string): string {
     switch (process.platform) {
       case "linux":
         return path.join(base, this.appNameForTarget(target));
@@ -226,7 +226,7 @@ export class Context {
     throw new Error("Unknown platform");
   }
 
-  getMacAppCandidates(target: Target): string[] {
+  getMacAppCandidates(target: Target = this.target): string[] {
     const appName = this.appNameForTarget(target);
 
     let locations = [`/Applications/${appName}`, `${process.env.HOME}/Applications/${appName}`];
@@ -246,14 +246,39 @@ export class Context {
     return locations;
   }
 
-  getLinuxAppCandidates(target: Target): string[] {
+  getLinuxAppCandidates(target: Target = this.target): string[] {
     const appName = this.appNameForTarget(target);
     return [`/usr/share/${appName}`, `/usr/local/share/${appName}`];
   }
 
-  getWindowsAppCandidates(target: Target): string[] {
+  getWindowsAppCandidates(target: Target = this.target): string[] {
     const baseDir = path.join(os.homedir(), "AppData", "Local", this.appNameForTarget(target));
     return this.getDirectoriesWithNameStart(baseDir, "app-").map(n => path.join(baseDir, n));
+  }
+
+  getAtomInstallLocation(target: Target = this.target): string {
+    let locations: string[];
+    switch (process.platform) {
+      case "darwin":
+        locations = this.getMacAppCandidates(target);
+        break;
+      case "linux":
+        locations = this.getLinuxAppCandidates(target);
+        break;
+      case "win32":
+        locations = this.getWindowsAppCandidates(target).map(p => path.dirname(p));
+        break;
+      default:
+        throw new Error(`Unsupported platform ${process.platform}`);
+    }
+
+    for (const location of locations) {
+      if (fs.existsSync(location)) {
+        return location;
+      }
+    }
+
+    throw new Error("Did not find any install locations");
   }
 
   getWindowsResourceDirectoryCandidates(target: Target): string[] {
