@@ -1,5 +1,7 @@
 import * as keytar from "keytar";
 
+// Linux TODO: Handle when gnome-keyring not installed (gets error The name org.freedesktop.secrets was not provided by any .service files)
+
 export enum Token {
   ATOMIO,
   GITHUB,
