@@ -19,6 +19,29 @@ export class Doctor extends Command {
     }
   }
 
+  checkAtomDirectoryPermissions(task: Task): boolean {
+    let success = true;
+    const stack: [string, boolean][] = [[this.context.getAtomDirectory(), true]];
+    while (stack.length > 0) {
+      const [node, isDir] = stack.pop()!;
+      try {
+        if (isDir) {
+          const children = fs.readdirSync(node, {withFileTypes: true});
+          for (const child of children) {
+            stack.push([path.join(node, child.name), child.isDirectory()]);
+          }
+        } else {
+          fs.accessSync(node, fs.constants.R_OK);
+        }
+      } catch (e) {
+        task.postWrite(`- Error when checking permissions on ${node}: ${e}\n`);
+        success = false;
+      }
+    }
+
+    return success;
+  }
+
   async doctorApx(): Promise<Map<string, () => string>> {
     const properties = new Map([
       ["Atom version", () => this.context.getAtomVersion().version],
@@ -109,8 +132,8 @@ export class Doctor extends Command {
     });
   }
 
-  async doctorAtom(): Promise<number> {
-    return 0; // TODO: Verify the Atom install & .atom folder is valid
+  async doctorAtom(task: Task): Promise<boolean> {
+    return this.checkAtomDirectoryPermissions(task);
   }
 
   handler(_argv: Arguments) {
@@ -131,6 +154,18 @@ export class Doctor extends Command {
           }
           task.postWrite(prettyPrint);
           errored ? task.nonFatalError("Error in some checks") : task.complete();
+        },
+      },
+      {
+        title: () => "Checking Atom",
+        task: async task => {
+          const success = await this.doctorAtom(task);
+
+          if (success) {
+            task.complete("Successfully doctored Atom");
+          } else {
+            task.nonFatalError("Error in some checks");
+          }
         },
       },
       {
